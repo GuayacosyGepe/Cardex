@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CardDex — Tu colección Pokémon TCG</title>
+<meta name="description" content="CardDex — prototipo web para gestionar, explorar y completar tu colección de Pokémon TCG.">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">C</div><span>CardDex</span></div>
+    <nav>
+      <button class="nav active" data-view="home">⌂ <span>Inicio</span></button>
+      <button class="nav" data-view="expansions">▦ <span>Expansiones</span></button>
+      <button class="nav" data-view="finder">⌕ <span>Buscador</span></button>
+      <button class="nav" data-view="mycollection">◫ <span>Mi colección</span></button>
+      <button class="nav" data-view="pokedex">◉ <span>Pokédex</span></button>
+    </nav>
+    <button class="nav settings" data-view="settings">⚙ <span>Ajustes</span></button>
+  </aside>
+
+  <main>
+    <header>
+      <div class="search"><span>⌕</span><input id="search" autocomplete="off" placeholder="Buscar un Pokémon, carta o expansión…"></div>
+      <div class="user-account" id="userAccount">
+        <button class="avatar-button" id="userMenuButton" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Cuenta de usuario">
+          <img id="userAvatarImage" src="avatar-demo.svg" alt="Avatar de usuario">
+          <span class="avatar-status" id="avatarStatus" aria-hidden="true"></span>
+        </button>
+        <div class="user-dropdown" id="userDropdown" role="menu" hidden>
+          <div class="account-summary">
+            <img id="dropdownAvatarImage" src="avatar-demo.svg" alt="">
+            <div><strong id="accountDisplayName">Jose</strong><span id="accountDisplayEmail">usuario@carddex.local</span><small id="accountModeLabel">Modo local</small></div>
+          </div>
+          <div id="accountLoggedInMenu" class="account-menu-list">
+            <button type="button" data-account-action="collection">◫ <span>Mi colección</span></button>
+            <button type="button" data-account-action="wishlist">♡ <span>Deseados</span></button>
+            <button type="button" data-account-action="goals">◎ <span>Objetivos</span></button>
+            <button type="button" data-account-action="avatar">◉ <span>Elegir avatar Pokémon</span></button>
+            <button type="button" data-account-action="settings">⚙ <span>Ajustes</span></button>
+            <div class="account-menu-separator"></div>
+            <button type="button" class="logout-action" data-account-action="logout">↪ <span>Cerrar sesión</span></button>
+          </div>
+          <div id="accountLoggedOutMenu" class="account-menu-list" hidden>
+            <p class="account-guest-copy">Inicia sesión para que, más adelante, tu colección pueda acompañarte en cualquier dispositivo.</p>
+            <button type="button" class="primary-account-action" data-account-action="login">Entrar</button>
+            <button type="button" data-account-action="register">Crear cuenta</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="home" class="view active-view">
+      <div class="eyebrow">TU COLECCIÓN</div>
+      <h1>Buenas. ¿Qué vamos a completar hoy?</h1>
+      <p class="lead">Tus expansiones, progreso y cartas pendientes en un solo sitio.</p>
+      <div class="stats">
+        <article><span>Cartas registradas</span><strong id="homeTotalCopies">0</strong><small>Copias guardadas en este prototipo</small></article>
+        <article><span>Cartas distintas</span><strong id="homeUniqueCards">0</strong><small>Con al menos una copia</small></article>
+        <article><span>Expansiones</span><strong id="homeSetCount">—</strong><small id="homeSeriesCount">Cargando catálogo completo…</small></article>
+      </div>
+      <div class="section-head"><div><h2>Expansiones recientes</h2><p>Explora las últimas expansiones.</p></div><button id="seeAll">Ver todas →</button></div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <section id="expansions" class="view">
+      <div class="eyebrow">BIBLIOTECA COMPLETA</div><h1>Expansiones</h1><p class="lead">Todas las eras del Pokémon TCG físico disponibles en CardDex. Busca una expansión o filtra por era.</p>
+      <div class="catalog-toolbar">
+        <div class="mini-search catalog-search"><span>⌕</span><input id="catalogSearch" autocomplete="off" placeholder="Buscar expansión, era o código…"></div>
+        <label class="era-filter-wrap"><span>Era</span><select id="eraFilter"><option value="">Todas las eras</option></select></label>
+        <button id="clearCatalogFilters" class="clear-filter-button catalog-clear" type="button">Limpiar</button>
+      </div>
+      <div id="catalogSummary" class="catalog-summary">Cargando todas las eras y expansiones…</div>
+      <div id="allCards" class="era-catalog"><div class="empty">Cargando catálogo…</div></div>
+    </section>
+
+    <section id="expansionDetail" class="view">
+      <button class="back-button" id="backFromExpansion">← Expansiones</button>
+      <div class="set-detail-head">
+        <div class="set-detail-logo"></div>
+        <div class="set-detail-copy-head">
+          <div class="eyebrow" id="expansionEyebrow">EXPANSIÓN</div>
+          <h1 id="expansionSetTitle">Expansión</h1>
+          <p class="lead" id="expansionSetProgress">Cargando…</p>
+        </div>
+      </div>
+      <div class="collection-progress"><span id="expansionProgressBar"></span></div>
+      <div class="card-toolbar">
+        <div class="mini-search"><span>⌕</span><input id="expansionSearch" placeholder="Buscar por nombre o número…"></div>
+        <button id="filterToggle" class="filter-button" type="button">☷ Filtros <span id="activeFilterCount"></span></button>
+        <button id="clearFilters" class="clear-filter-button" type="button">Limpiar</button>
+      </div>
+      <div id="filterPanel" class="filter-panel" hidden>
+        <label>Rareza
+          <select id="rarityFilter">
+            <option value="">Todas</option>
+            <option value="Common">● Común</option>
+            <option value="Uncommon">◆ Poco común</option>
+            <option value="Rare">★ Rara</option>
+            <option value="Double Rare">★★ Doble rara</option>
+            <option value="Illustration Rare">★ Ilustración rara</option>
+            <option value="Ultra Rare">★★ Ultra rara</option>
+            <option value="Special Illustration Rare">★★ Ilustración especial rara</option>
+            <option value="Hyper Rare">★★★ Hiper rara</option>
+          </select>
+          <div id="rarityFilterPreview" class="filter-preview"><span class="filter-preview-muted">Todas las rarezas</span></div>
+        </label>
+        <label>Tipo
+          <select id="typeFilter">
+            <option value="">Todos</option>
+            <option value="Grass">✿ Planta</option>
+            <option value="Fire">▲ Fuego</option>
+            <option value="Water">◆ Agua</option>
+            <option value="Lightning">ϟ Rayo</option>
+            <option value="Psychic">✺ Psíquico</option>
+            <option value="Fighting">✦ Lucha</option>
+            <option value="Darkness">☾ Oscuro</option>
+            <option value="Metal">⬡ Metal</option>
+            <option value="Dragon">◇ Dragón</option>
+            <option value="Colorless">○ Incoloro</option>
+          </select>
+          <div id="typeFilterPreview" class="filter-preview"><span class="filter-preview-muted">Todos los tipos</span></div>
+        </label>
+      </div>
+      <div id="expansionFilterInfo" class="inline-notice"></div>
+      <div id="expansionCardGrid" class="tcg-grid"><div class="empty">Selecciona una expansión.</div></div>
+    </section>
+
+    <section id="finder" class="view">
+      <div class="eyebrow">EXPLORAR</div><h1>Buscador</h1><p class="lead">Busca un Pokémon para ver todas sus cartas, o encuentra cartas y expansiones por nombre.</p>
+      <div class="finder-box">
+        <div class="finder-search-row">
+          <input id="finderSearch" autocomplete="off" placeholder="Por ejemplo: Pikachu">
+          <button id="finderButton">Buscar</button>
+        </div>
+        <div id="finderResults" class="finder-results"><div class="empty">Escribe algo para empezar.</div></div>
+      </div>
+    </section>
+
+    <section id="mycollection" class="view">
+      <div class="eyebrow">TU PROGRESO</div><h1>Mi colección</h1><p class="lead">Gestiona tus expansiones, las cartas que quieres conseguir y tus objetivos personales.</p>
+      <div class="collection-tabs" role="tablist" aria-label="Secciones de Mi colección">
+        <button class="collection-tab active" data-collection-tab="sets" type="button">Expansiones</button>
+        <button class="collection-tab" data-collection-tab="wishlist" type="button">Deseados <span id="wishlistCountBadge">0</span></button>
+        <button class="collection-tab" data-collection-tab="goals" type="button">Objetivos <span id="goalsCountBadge">0</span></button>
+      </div>
+
+      <div id="collectionTabSets" class="collection-tab-panel active">
+        <div id="myCollectionSets" class="era-catalog"><div class="empty">Cargando expansiones…</div></div>
+      </div>
+
+      <div id="collectionTabWishlist" class="collection-tab-panel" hidden>
+        <div class="section-head collection-subhead"><div><h2>Lista de deseados</h2><p>Cartas que todavía no tienes y quieres conseguir.</p></div></div>
+        <div id="wishlistGrid" class="tcg-grid"><div class="empty">Todavía no has añadido cartas a Deseados.</div></div>
+      </div>
+
+      <div id="collectionTabGoals" class="collection-tab-panel" hidden>
+        <div class="section-head collection-subhead"><div><h2>Objetivos</h2><p>Crea metas de colección y sigue su progreso carta a carta.</p></div><button id="newGoalButton" type="button">+ Nuevo objetivo</button></div>
+        <div id="goalCreatePanel" class="goal-create-panel" hidden>
+          <label>Nombre del objetivo<input id="goalNameInput" maxlength="80" placeholder="Ej. Pikachus del 30 aniversario"></label>
+          <label>Descripción <input id="goalDescriptionInput" maxlength="160" placeholder="Opcional"></label>
+          <div class="goal-create-actions"><button id="cancelGoalButton" type="button">Cancelar</button><button id="saveGoalButton" class="primary-button" type="button">Crear objetivo</button></div>
+        </div>
+        <div id="goalsGrid" class="goals-grid"><div class="empty">Todavía no tienes objetivos.</div></div>
+        <div id="goalDetail" class="goal-detail" hidden>
+          <button id="backToGoals" class="back-button" type="button">← Objetivos</button>
+          <div class="goal-detail-head">
+            <div><div class="eyebrow">OBJETIVO</div><h2 id="goalDetailName">Objetivo</h2><p id="goalDetailDescription"></p></div>
+            <button id="deleteGoalButton" class="danger-button" type="button">Eliminar objetivo</button>
+          </div>
+          <div class="goal-progress-row"><strong id="goalDetailProgress">0 / 0 · 0%</strong><div class="collection-progress"><span id="goalDetailProgressBar"></span></div></div>
+          <div id="goalCardGrid" class="tcg-grid collection-mode"><div class="empty">Añade cartas desde su ficha.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pokedex" class="view">
+      <div class="eyebrow">POKÉDEX NACIONAL</div><h1>Pokédex</h1><p class="lead">Pulsa un Pokémon para ver todas sus cartas disponibles.</p>
+      <div class="pokedex-toolbar"><input id="pokeSearch" placeholder="Buscar por nombre o número…"></div>
+      <div id="pokeGrid" class="poke-grid"><div class="empty">Cargando Pokédex…</div></div>
+    </section>
+
+    <section id="pokemonCards" class="view">
+      <button class="back-button" id="backFromPokemon">← Pokédex</button>
+      <div class="pokemon-detail-head">
+        <div class="pokemon-detail-art"><img id="pokemonDetailImage" alt=""></div>
+        <div>
+          <div class="eyebrow">CARTAS DEL POKÉMON</div>
+          <div id="pokemonDetailNumber" class="pokemon-number"></div>
+          <h1 id="pokemonDetailName">Pokémon</h1>
+          <p class="lead" id="pokemonCardCount">Buscando cartas…</p>
+        </div>
+      </div>
+      <div id="pokemonCardsNotice" class="inline-notice"></div>
+      <div id="pokemonCardGrid" class="tcg-grid"><div class="empty">Selecciona un Pokémon.</div></div>
+    </section>
+
+    <section id="settings" class="view">
+      <div class="eyebrow">CARDEX</div><h1>Ajustes</h1><p class="lead">Configura cómo quieres ver y utilizar CardDex.</p>
+      <div class="settings-grid">
+        <article class="settings-panel">
+          <div class="settings-panel-head">
+            <div><span class="settings-kicker">VISUALIZACIÓN</span><h2>Tema</h2><p>Elige el aspecto de CardDex. La preferencia se guarda en este navegador.</p></div>
+            <div id="themeStatus" class="theme-status">Oscuro</div>
+          </div>
+          <div class="theme-options" role="radiogroup" aria-label="Tema de CardDex">
+            <label class="theme-option">
+              <input type="radio" name="carddexTheme" value="dark">
+              <span class="theme-preview theme-preview-dark"><i></i><i></i><i></i></span>
+              <span><b>Oscuro</b><small>El tema principal actual de CardDex.</small></span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="carddexTheme" value="light">
+              <span class="theme-preview theme-preview-light"><i></i><i></i><i></i></span>
+              <span><b>Claro</b><small>Fondos claros y alto contraste.</small></span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="carddexTheme" value="system">
+              <span class="theme-preview theme-preview-system"><i></i><i></i><i></i></span>
+              <span><b>Sistema</b><small>Sigue automáticamente el tema de tu dispositivo.</small></span>
+            </label>
+          </div>
+        </article>
+        <article class="settings-panel compact-settings-panel sync-settings-panel">
+          <div class="settings-panel-head">
+            <div><span class="settings-kicker">CUENTA Y DATOS</span><h2>Sincronización</h2><p id="syncSettingsCopy">Tus datos se guardan actualmente en este navegador.</p></div>
+            <div id="syncStatusBadge" class="theme-status">Local</div>
+          </div>
+          <p class="settings-note">Cuando conectemos Supabase, colección, deseados, objetivos, tema y avatar se sincronizarán con tu cuenta.</p>
+        </article>
+        <article class="settings-panel compact-settings-panel">
+          <div><span class="settings-kicker">VERSIÓN</span><h2>CardDex 0.16 · Cuenta Preview</h2><p>Prototipo web. Por ahora, tu colección, deseados y objetivos se guardan únicamente en este navegador; la cuenta de usuario de esta versión es todavía una simulación local; la autenticación y la sincronización reales llegarán con el backend.</p></div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="authModal" class="account-modal" aria-hidden="true" hidden>
+  <div class="account-modal-backdrop" data-close-auth></div>
+  <div class="account-modal-panel" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <button class="account-modal-close" type="button" data-close-auth aria-label="Cerrar">×</button>
+    <div class="auth-brand"><div class="brandmark">C</div><div><strong>CardDex</strong><span>Cuenta de usuario</span></div></div>
+    <div class="auth-mode-switch" role="tablist" aria-label="Acceso a CardDex">
+      <button id="authModeLogin" class="active" type="button">Iniciar sesión</button>
+      <button id="authModeRegister" type="button">Crear cuenta</button>
+    </div>
+    <h2 id="authModalTitle">Iniciar sesión</h2>
+    <p class="auth-intro" id="authIntro">Accede a tu cuenta para sincronizar tu colección entre dispositivos.</p>
+    <form id="authForm">
+      <label id="authNameRow" hidden>Nombre visible<input id="authName" autocomplete="name" placeholder="Jose"></label>
+      <label>Correo<input id="authEmail" type="email" autocomplete="email" placeholder="tu@email.com" required></label>
+      <label>Contraseña<input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required></label>
+      <small id="authBackendNote" class="auth-demo-note">CardDex todavía no tiene conectado un proyecto Supabase. Puedes seguir usando la app en modo local.</small>
+      <div id="authFeedback" class="auth-feedback" role="status" aria-live="polite"></div>
+      <button id="authSubmit" class="auth-submit" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div id="avatarModal" class="account-modal" aria-hidden="true" hidden>
+  <div class="account-modal-backdrop" data-close-avatar></div>
+  <div class="account-modal-panel avatar-picker-panel" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+    <button class="account-modal-close" type="button" data-close-avatar aria-label="Cerrar">×</button>
+    <div class="auth-brand"><div class="brandmark">C</div><div><strong>CardDex</strong><span>Avatar Pokémon</span></div></div>
+    <h2 id="avatarModalTitle">Elige tu Pokémon</h2>
+    <p class="auth-intro">Escoge un sprite para representar tu perfil. Puedes cambiarlo cuando quieras.</p>
+    <div class="avatar-picker-toolbar">
+      <div class="avatar-style-switch" role="tablist" aria-label="Estilo de avatar">
+        <button type="button" class="active" data-avatar-style="pixel">Pixel clásico</button>
+        <button type="button" data-avatar-style="icon">Mini icono</button>
+      </div>
+      <div class="mini-search avatar-search"><span>⌕</span><input id="avatarSearch" autocomplete="off" placeholder="Buscar Pokémon o número…"></div>
+    </div>
+    <div id="avatarPickerGrid" class="avatar-picker-grid"><div class="empty">Cargando Pokémon…</div></div>
+    <div class="avatar-picker-foot"><small>Los sprites se cargan desde PokéAPI para este prototipo.</small></div>
+  </div>
+</div>
+
+<div id="cardModal" class="modal" aria-hidden="true">
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="cardModalTitle">
+    <button class="modal-close" data-close-modal aria-label="Cerrar">×</button>
+    <div class="card-detail-image">
+      <button id="prevCard" class="card-nav-arrow card-nav-prev" aria-label="Carta anterior">‹</button>
+      <img id="cardModalImage" alt="">
+      <button id="nextCard" class="card-nav-arrow card-nav-next" aria-label="Carta siguiente">›</button>
+      <div id="cardPosition" class="card-position" aria-live="polite"></div>
+    </div>
+    <div class="card-detail-copy">
+      <div class="eyebrow" id="cardModalSet">EXPANSIÓN</div>
+      <h2 id="cardModalTitle">Carta</h2>
+      <div id="cardModalMeta" class="detail-meta"></div>
+      <div id="cardmarketPriceBox" class="market-price-box" hidden>
+        <div class="market-price-head">
+          <span>PRECIO CARDMARKET</span>
+          <small id="cardmarketUpdated"></small>
+        </div>
+        <div id="cardmarketPriceContent" class="market-price-content"></div>
+        <small class="market-price-note">Precio orientativo de mercado. Puede variar según idioma, estado y variante de la carta.</small>
+      </div>
+      <div class="collection-counter-box">
+        <span>Copias en tu colección</span>
+        <div class="counter">
+          <button id="decreaseCard" aria-label="Quitar una copia">−</button>
+          <strong id="cardCount">0</strong>
+          <button id="increaseCard" aria-label="Añadir una copia">+</button>
+        </div>
+        <small>Por ahora se guarda en este navegador. Más adelante esto irá ligado a tu cuenta de CardDex.</small>
+      </div>
+      <div class="card-planning-box">
+        <div class="planning-row">
+          <div><span>Deseados</span><small>Guarda esta carta como pendiente.</small></div>
+          <button id="wishlistToggle" class="wishlist-toggle" type="button">♡ Añadir</button>
+        </div>
+        <div class="planning-row objective-row">
+          <div><span>Objetivo</span><small>Añádela a una meta personal.</small></div>
+          <div class="objective-control"><select id="goalSelect"><option value="">Seleccionar objetivo…</option></select><button id="addToGoalButton" type="button">Añadir</button></div>
+        </div>
+        <small id="planningFeedback" class="planning-feedback"></small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="app.js"></script>
+</body></html>

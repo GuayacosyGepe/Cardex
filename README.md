@@ -33,9 +33,11 @@ El esquema activa Row Level Security para que cada usuario solo pueda leer y esc
 
 Los datos públicos de Pokémon/TCG siguen viniendo de TCGdex/PokéAPI; la base de datos solo almacena los datos personales del usuario.
 
+
 ## Optimización 0.19
 
 Supabase ya no almacena `card_data` JSON en colección, deseados ni objetivos. Solo persiste identificadores, cantidades y fechas. CardDex reconstruye los datos visuales desde TCGdex al iniciar sesión en un dispositivo nuevo y los conserva en la caché/localStorage del navegador.
+
 
 ## Fallback de logos 0.20
 
