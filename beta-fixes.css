@@ -1,0 +1,14 @@
+/* CardDex beta fixes — feedback de usuarios */
+
+/* Pokédex: evita que 1–3 resultados se estiren a todo el ancho. */
+.poke-grid{
+  grid-template-columns:repeat(auto-fill,minmax(135px,165px));
+  justify-content:start;
+}
+
+@media(max-width:650px){
+  .poke-grid{
+    grid-template-columns:repeat(auto-fill,minmax(100px,125px));
+    justify-content:start;
+  }
+}
