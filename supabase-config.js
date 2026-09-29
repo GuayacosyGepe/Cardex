@@ -5,3 +5,9 @@ window.CARDEX_SUPABASE = {
   url: 'https://oewawwmnwokpysxytxmy.supabase.co',
   key: 'sb_publishable_EOQNxcM-cuAG4UgJrvwOVw_yfh8a9l9'
 };
+
+// Carga de correcciones rápidas durante la beta. Se integrarán en styles.css en la próxima versión completa.
+const cardDexBetaFixes = document.createElement('link');
+cardDexBetaFixes.rel = 'stylesheet';
+cardDexBetaFixes.href = 'beta-fixes.css';
+document.head.appendChild(cardDexBetaFixes);
