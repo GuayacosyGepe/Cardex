@@ -14,6 +14,33 @@
     return false;
   }
 
+  // Segunda barrera: cualquier listado de cartas que llegue desde /cards se limpia
+  // antes de que el resto de CardDex lo vea (Buscador, Pokédex, sugerencias, etc.).
+  function installPocketFetchGuard(){
+    if(window.__cardDexPocketFetchGuard)return;
+    const nativeFetch=window.fetch.bind(window);
+    window.fetch=async (...args)=>{
+      const response=await nativeFetch(...args);
+      const request=args[0];
+      const url=typeof request==='string'?request:(request?.url||'');
+      if(!/api\.tcgdex\.net\/v2\/[^/]+\/cards(?:\?|$)/i.test(url))return response;
+      try{
+        const data=await response.clone().json();
+        if(!Array.isArray(data))return response;
+        const filtered=data.filter(card=>!isPocketEntity(card));
+        if(filtered.length===data.length)return response;
+        return new Response(JSON.stringify(filtered),{
+          status:response.status,
+          statusText:response.statusText,
+          headers:new Headers(response.headers)
+        });
+      }catch{
+        return response;
+      }
+    };
+    window.__cardDexPocketFetchGuard=true;
+  }
+
   function purgePocketCatalog(){
     try{
       if(typeof seriesCatalog==='undefined'||typeof sets==='undefined'||!Array.isArray(seriesCatalog)||!Array.isArray(sets))return false;
@@ -256,6 +283,7 @@
   }
 
   function initBetaFixes(){
+    installPocketFetchGuard();
     armPocketCatalogGuard();
     initGlobalSearchAutocomplete();
   }
