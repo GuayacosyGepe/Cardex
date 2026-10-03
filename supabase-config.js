@@ -6,8 +6,12 @@ window.CARDEX_SUPABASE = {
   key: 'sb_publishable_EOQNxcM-cuAG4UgJrvwOVw_yfh8a9l9'
 };
 
-// Carga de correcciones rápidas durante la beta. Se integrarán en styles.css en la próxima versión completa.
+// Carga de correcciones rápidas durante la beta. Se integrarán en la próxima versión completa.
 const cardDexBetaFixes = document.createElement('link');
 cardDexBetaFixes.rel = 'stylesheet';
-cardDexBetaFixes.href = 'beta-fixes.css';
+cardDexBetaFixes.href = 'beta-fixes.css?v=20261003-2';
 document.head.appendChild(cardDexBetaFixes);
+
+const cardDexBetaScript = document.createElement('script');
+cardDexBetaScript.src = 'beta-fixes.js?v=20261003-1';
+document.head.appendChild(cardDexBetaScript);
