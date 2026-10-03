@@ -13,5 +13,5 @@ cardDexBetaFixes.href = 'beta-fixes.css?v=20261003-2';
 document.head.appendChild(cardDexBetaFixes);
 
 const cardDexBetaScript = document.createElement('script');
-cardDexBetaScript.src = 'beta-fixes.js?v=20261003-1';
+cardDexBetaScript.src = 'beta-fixes.js?v=20261003-2';
 document.head.appendChild(cardDexBetaScript);
