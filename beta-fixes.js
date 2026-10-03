@@ -1,5 +1,66 @@
 /* CardDex beta fixes — comportamiento añadido durante pruebas con usuarios. */
 (() => {
+  // CardDex cataloga exclusivamente el TCG físico. TCGdex agrupa Pocket bajo tcgp,
+  // pero mantenemos varias señales de respaldo para evitar fugas por búsquedas directas.
+  function isPocketEntity(entity={}){
+    const id=String(entity.id||entity.tcgId||entity.cardId||'').trim();
+    const haystack=[
+      entity.seriesId, entity.seriesName, entity.name, entity.logo,
+      entity.symbol, entity.image, id
+    ].filter(Boolean).join(' ').toLowerCase();
+    if(haystack.includes('tcgp')||haystack.includes('tcg pocket')||haystack.includes('pokemon pocket')||haystack.includes('pokémon pocket'))return true;
+    // IDs actuales/futuros habituales de Pocket (A1, A1a, B1, P-A y sus cartas).
+    if(/^(?:[ab]\d+(?:[a-z])?|p-a)(?:-|$)/i.test(id))return true;
+    return false;
+  }
+
+  function purgePocketCatalog(){
+    try{
+      if(typeof seriesCatalog==='undefined'||typeof sets==='undefined'||!Array.isArray(seriesCatalog)||!Array.isArray(sets))return false;
+      if(!seriesCatalog.length&&!sets.length)return false;
+      const beforeSeries=seriesCatalog.length;
+      const beforeSets=sets.length;
+
+      for(let i=seriesCatalog.length-1;i>=0;i--){
+        const serie=seriesCatalog[i];
+        if(isPocketEntity(serie)){
+          seriesCatalog.splice(i,1);
+          continue;
+        }
+        if(Array.isArray(serie.sets)){
+          serie.sets=serie.sets.filter(set=>!isPocketEntity({...set,seriesId:set.seriesId||serie.id,seriesName:set.seriesName||serie.name}));
+          if(!serie.sets.length)seriesCatalog.splice(i,1);
+        }
+      }
+
+      const allowed=new Set(seriesCatalog.flatMap(serie=>serie.sets||[]).map(set=>String(set.tcgId||set.id)));
+      for(let i=sets.length-1;i>=0;i--){
+        if(isPocketEntity(sets[i])||!allowed.has(String(sets[i].tcgId||sets[i].id)))sets.splice(i,1);
+      }
+
+      const changed=beforeSeries!==seriesCatalog.length||beforeSets!==sets.length;
+      if(changed){
+        if(typeof populateEraFilter==='function')populateEraFilter();
+        if(typeof renderLibrary==='function')renderLibrary();
+        if(typeof renderMyCollectionSets==='function')renderMyCollectionSets();
+        if(typeof updateCatalogStats==='function')updateCatalogStats();
+      }
+      return true;
+    }catch(err){
+      console.warn('CardDex Pocket filter:',err);
+      return false;
+    }
+  }
+
+  function armPocketCatalogGuard(){
+    let attempts=0;
+    const timer=setInterval(()=>{
+      attempts++;
+      const ready=purgePocketCatalog();
+      if((ready&&typeof sets!=='undefined'&&sets.length)||attempts>=40)clearInterval(timer);
+    },250);
+  }
+
   function initGlobalSearchAutocomplete(){
     const input=document.querySelector('#search');
     const wrap=input?.closest('.search');
@@ -47,7 +108,7 @@
     function getLocalMatches(query){
       const n=norm(query);
       const pokeList=(typeof pokemon!=='undefined'&&Array.isArray(pokemon))?pokemon:[];
-      const setList=(typeof sets!=='undefined'&&Array.isArray(sets))?sets:[];
+      const setList=(typeof sets!=='undefined'&&Array.isArray(sets))?sets.filter(set=>!isPocketEntity(set)):[];
 
       const pokeMatches=pokeList
         .filter(p=>norm(p.displayName||p.name).includes(n)||String(p.id).startsWith(n))
@@ -112,7 +173,7 @@
         if(thisRequest!==requestId||norm(input.value)!==norm(query))return;
         const n=norm(query);
         cards=(Array.isArray(cards)?cards:[])
-          .filter(card=>norm(card.name).includes(n))
+          .filter(card=>!isPocketEntity(card)&&norm(card.name).includes(n))
           .sort((a,b)=>scoreLabel(a.name,n)-scoreLabel(b.name,n)||String(a.localId).localeCompare(String(b.localId),undefined,{numeric:true}))
           .slice(0,6);
         latestCards=cards;
@@ -194,6 +255,11 @@
     document.addEventListener('click',event=>{if(!wrap.contains(event.target))closeSuggestions()});
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initGlobalSearchAutocomplete,{once:true});
-  else initGlobalSearchAutocomplete();
+  function initBetaFixes(){
+    armPocketCatalogGuard();
+    initGlobalSearchAutocomplete();
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initBetaFixes,{once:true});
+  else initBetaFixes();
 })();
