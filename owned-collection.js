@@ -227,8 +227,30 @@
     });
     return items;
   }
+  function extendMetadataChoices(){
+    const choices=[
+      {selector:'#ownedRarityFilter', field:'rarity'},
+      {selector:'#ownedTypeFilter', field:'types'}
+    ];
+    for(const spec of choices){
+      const select=$owned(spec.selector);
+      if(!select)return;
+      const available=new Set([...select.options].map(option=>option.value));
+      ownedList.forEach(({id})=>{
+        const value=cache.get(id)?.[spec.field];
+        const values=Array.isArray(value)?value:[value];
+        values.filter(Boolean).forEach(v=>{
+          if(!available.has(v)){
+            select.add(new Option(v,v));
+            available.add(v);
+          }
+        });
+      });
+    }
+  }
   function render(){
     const grid=$owned('#ownedCardsGrid');if(!grid)return;
+    extendMetadataChoices();
     const duplicates=ownedList.filter(item=>item.quantity>1).length;
     $owned('#ownedUniqueCount').textContent=ownedList.length.toLocaleString('es-ES');
     $owned('#ownedTotalCount').textContent=ownedList.reduce((n,item)=>n+item.quantity,0).toLocaleString('es-ES');
@@ -340,7 +362,7 @@
     ['#ownedRarityFilter','#ownedCategoryFilter','#ownedTypeFilter'].forEach(id=>{
       $owned(id)?.addEventListener('change',()=>{
         pageLimit=PAGE_SIZE;
-        if(metadataRequired())enrichForFilters();
+        if(metadataRequired()){enrichForFilters();render();}
         else render();
       });
     });
