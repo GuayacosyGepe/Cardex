@@ -7,7 +7,6 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="owned-collection.css?v=20261021-1">
 </head>
 <body>
 <div class="app">
@@ -142,49 +141,15 @@
     </section>
 
     <section id="mycollection" class="view">
-      <div class="eyebrow">TU PROGRESO</div><h1>Mi colección</h1><p class="lead">Todas las cartas que tienes, juntas y a tu manera.</p>
+      <div class="eyebrow">TU PROGRESO</div><h1>Mi colección</h1><p class="lead">Gestiona tus expansiones, las cartas que quieres conseguir y tus objetivos personales.</p>
       <div class="collection-tabs" role="tablist" aria-label="Secciones de Mi colección">
-        <button class="collection-tab active" data-collection-tab="cards" type="button">Mis cartas</button>
+        <button class="collection-tab active" data-collection-tab="sets" type="button">Expansiones</button>
         <button class="collection-tab" data-collection-tab="wishlist" type="button">Deseados <span id="wishlistCountBadge">0</span></button>
         <button class="collection-tab" data-collection-tab="goals" type="button">Objetivos <span id="goalsCountBadge">0</span></button>
       </div>
 
-      <div id="collectionTabCards" class="collection-tab-panel active">
-        <div class="owned-collection-summary">
-          <div><span>Cartas diferentes</span><strong id="ownedUniqueCount">0</strong></div>
-          <div><span>Ejemplares en total</span><strong id="ownedTotalCount">0</strong></div>
-          <div><span>Con repetidas</span><strong id="ownedDuplicateCount">0</strong></div>
-        </div>
-        <div class="owned-collection-toolbar">
-          <label class="owned-collection-search"><span aria-hidden="true">⌕</span><input id="ownedCardsSearch" type="search" autocomplete="off" placeholder="Buscar entre mis cartas..." aria-label="Buscar entre mis cartas"></label>
-          <div class="owned-collection-toolbar-actions">
-            <button type="button" class="owned-view-button active" data-owned-view="cards" aria-pressed="true">▦ Cartas</button>
-            <button type="button" class="owned-view-button" data-owned-view="sets" aria-pressed="false">◫ Expansiones</button>
-            <button type="button" id="ownedFiltersToggle" class="owned-view-button" aria-expanded="false" aria-controls="ownedFiltersPanel">☷ Filtros</button>
-          </div>
-        </div>
-        <div id="ownedFiltersPanel" class="owned-filter-panel" hidden>
-          <label>Expansión<select id="ownedSetFilter"><option value="">Todas</option></select></label>
-          <label>Categoría<select id="ownedCategoryFilter"><option value="">Todas</option><option value="Pokemon">Pokémon</option><option value="Trainer">Entrenador</option><option value="Energy">Energía</option></select></label>
-          <label>Rareza<select id="ownedRarityFilter"><option value="">Todas</option></select></label>
-          <label>Tipo<select id="ownedTypeFilter"><option value="">Todos</option></select></label>
-          <label>Ordenar<select id="ownedSortFilter">
-            <option value="set">Por expansión (más recientes)</option>
-            <option value="name">Nombre A–Z</option>
-            <option value="number">Número de carta</option>
-            <option value="quantity">Más ejemplares</option>
-          </select></label>
-          <label class="owned-duplicates-label"><input id="ownedDuplicatesFilter" type="checkbox"> Solo repetidas</label>
-          <button id="ownedClearFilters" type="button">Limpiar filtros</button>
-        </div>
-        <p id="ownedCollectionProgress" class="owned-load-status" aria-live="polite"></p>
-        <div id="ownedCardsView">
-          <div id="ownedCardsGrid" class="tcg-grid owned-collection-grid"><div class="empty">Cargando tus cartas…</div></div>
-          <div class="owned-pager"><span id="ownedCardsResultCount"></span><button id="ownedCardsShowMore" type="button" hidden>Mostrar más cartas</button></div>
-        </div>
-        <div id="ownedSetsView" hidden>
-          <div id="myCollectionSets" class="era-catalog"><div class="empty">Cargando expansiones…</div></div>
-        </div>
+      <div id="collectionTabSets" class="collection-tab-panel active">
+        <div id="myCollectionSets" class="era-catalog"><div class="empty">Cargando expansiones…</div></div>
       </div>
 
       <div id="collectionTabWishlist" class="collection-tab-panel" hidden>
@@ -363,6 +328,5 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
-<script src="app.js?v=20261021-owned-gallery"></script>
-<script src="owned-collection.js?v=20261021-2"></script>
+<script src="app.js?v=20261021-classic-english-scans"></script>
 </body></html>
