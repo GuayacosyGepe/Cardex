@@ -9,7 +9,7 @@ window.CARDEX_SUPABASE = {
 // Carga de correcciones rápidas durante la beta. Se integrarán en la próxima versión completa.
 const cardDexBetaFixes = document.createElement('link');
 cardDexBetaFixes.rel = 'stylesheet';
-cardDexBetaFixes.href = 'beta-fixes.css?v=20261003-2';
+cardDexBetaFixes.href = 'beta-fixes.css?v=20261021-classic-en';
 document.head.appendChild(cardDexBetaFixes);
 
 const cardDexBetaScript = document.createElement('script');
