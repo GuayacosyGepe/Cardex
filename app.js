@@ -4,6 +4,13 @@ const API_ROOT='https://api.tcgdex.net/v2';
 const API=`${API_ROOT}/es`;
 const EXCLUDED_SERIES=new Set(['tcgp']); // TCGdex agrupa TODO Pokémon TCG Pocket en 'tcgp'; CardDex solo cataloga TCG físico.
 const CATALOG_LANGS=['es','en'];
+// Estas colecciones físicas del 30.º aniversario no siempre aparecen en los índices ES/EN.
+// Importación puntual de tres sets, sin descargar el catálogo japonés completo.
+const ANNIVERSARY_SET_SOURCES=[
+  {id:'M6a',langs:['ja'],name:'30th CELEBRATION'},
+  {id:'MF',langs:['ja'],name:'30th CELEBRATION · Espeon y Umbreon'},
+  {id:'30th-c',langs:['es','en','fr'],name:'Colección Clásica del 30.º Aniversario'}
+];
 const THEME_KEY='carddex_theme_v1';
 const VALID_THEMES=new Set(['dark','light','system']);
 const systemThemeQuery=window.matchMedia('(prefers-color-scheme: dark)');
@@ -100,14 +107,67 @@ function mergeCatalog(esSeries=[],enSeries=[]){
   }).filter(s=>s.sets.length);
   sets=seriesCatalog.flatMap(s=>s.sets);
 }
+async function loadAnniversarySets(){
+  const responses=await Promise.allSettled(ANNIVERSARY_SET_SOURCES.map(async source=>{
+    for(const lang of source.langs){
+      try{
+        const data=await fetchJson(`${apiFor(lang)}/sets/${encodeURIComponent(source.id)}`);
+        if(data?.id&&Array.isArray(data.cards)&&data.cards.length)
+          return {source,data,lang};
+      }catch(err){
+        console.warn('CardDex aniversario:',source.id,lang,err?.message||err);
+      }
+    }
+    return null;
+  }));
+  return responses.filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value);
+}
+function addAnniversarySets(found){
+  if(!found.length)return;
+  const currentById=new Map(sets.map(s=>[s.tcgId.toLowerCase(),s]));
+  const special=found.map(({source,data,lang})=>{
+    const id=data.id||source.id;
+    const existing=currentById.get(id.toLowerCase());
+    return {
+      ...(existing||{}),
+      id,tcgId:id,code:id,
+      name:data.name||existing?.name||source.name,
+      logo:assetUrl(data.logo||existing?.logo||''),
+      symbol:assetUrl(data.symbol||existing?.symbol||''),
+      total:data.cardCount?.total||data.cards.length,
+      official:data.cardCount?.official||data.cards.length,
+      cardCount:data.cardCount||{},
+      releaseDate:data.releaseDate||'',
+      seriesId:'anniversary30',
+      seriesName:'30.º aniversario',
+      lang,
+      glow:glowFromString(id),
+      rank:0
+    };
+  });
+  const selected=new Set(special.map(s=>s.id.toLowerCase()));
+  seriesCatalog.forEach(serie=>{serie.sets=serie.sets.filter(set=>!selected.has(set.id.toLowerCase()))});
+  seriesCatalog=seriesCatalog.filter(serie=>serie.sets.length);
+  seriesCatalog.unshift({
+    id:'anniversary30',
+    name:'30.º aniversario · Colecciones especiales',
+    logo:'',
+    lang:'es',
+    rank:-1,
+    sets:special
+  });
+  sets=seriesCatalog.flatMap(serie=>serie.sets);
+}
 async function loadCatalog(){
   setCatalogLoading(true);
   try{
-    const [esResult,enResult]=await Promise.allSettled(CATALOG_LANGS.map(loadSeriesLanguage));
+    const [esResult,enResult,anniversaryResult]=await Promise.allSettled([...CATALOG_LANGS.map(loadSeriesLanguage),loadAnniversarySets()]);
     const esSeries=esResult.status==='fulfilled'?esResult.value:[];
     const enSeries=enResult.status==='fulfilled'?enResult.value:[];
-    if(!esSeries.length&&!enSeries.length)throw new Error('No catalog languages available');
+    const anniversary=anniversaryResult.status==='fulfilled'?anniversaryResult.value:[];
+    if(!esSeries.length&&!enSeries.length&&!anniversary.length)throw new Error('No catalog languages available');
     mergeCatalog(esSeries,enSeries);
+    addAnniversarySets(anniversary);
     populateEraFilter();
     renderLibrary();
     renderMyCollectionSets();
