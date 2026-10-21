@@ -4,6 +4,7 @@
   const PAGE=60, KEY='carddex_gallery_meta_v2';
   const $=s=>document.querySelector(s);
   const cache=new Map();
+  const failed=new Set();
   let version='', visible=PAGE, view='cards', loading=false, detailLoading=false, sequence=0, loaded=0, pending=0;
   let entries=[], matched=[];
   try { Object.entries(JSON.parse(localStorage.getItem(KEY)||'{}')).forEach(([k,v])=>{if(v?.name)cache.set(k,v)}); } catch {}
@@ -134,7 +135,7 @@
   }
   async function hydrate(){
     if(loading||!isCurrent())return;
-    const todo=entries.filter(x=>!cache.has(x.id)).slice(0,Math.max(visible,120));
+    const todo=entries.filter(x=>!cache.has(x.id)&&!failed.has(x.id)).slice(0,Math.max(visible,120));
     if(!todo.length)return;
     loading=true;const gen=sequence;pending=todo.length;loaded=0;
     const buckets=new Map();todo.forEach(({id})=>{const setId=setOf(id);if(!buckets.has(setId))buckets.set(setId,[]);buckets.get(setId).push(id)});
@@ -151,12 +152,16 @@
           let data=map.get(cardId);
           if(!data){try{data=await getCardDetail(cardId)}catch{}}
           if(data)addMeta(data,Boolean(data.category));
+          else failed.add(cardId);
           loaded++;
         }
         if(sequence===gen){options();render();}
       }
     }));
-    if(sequence===gen){loading=false;saveCache();render();}
+    if(sequence===gen){
+      loading=false;saveCache();render();
+      if(entries.some(item=>!cache.has(item.id)&&!failed.has(item.id)))setTimeout(()=>hydrate(),150);
+    }
   }
   async function maybeDetail(){
     if(!advanced()||detailLoading||!isCurrent())return;
