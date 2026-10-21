@@ -1,0 +1,102 @@
+
+/* CardDex — Mi colección: galería visual y filtros */
+.owned-collection-summary{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;margin:-3px 0 20px
+}
+.owned-collection-summary>div{
+  min-width:0;display:flex;flex-direction:column;gap:8px;
+  padding:17px 19px;border-radius:17px;background:var(--panel);
+  border:1px solid var(--line)
+}
+.owned-collection-summary span{font-size:12px;color:var(--muted);line-height:1.4}
+.owned-collection-summary strong{font-size:clamp(21px,2.6vw,29px);font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.owned-collection-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:0 0 13px;flex-wrap:wrap
+}
+.owned-collection-search{
+  display:flex;align-items:center;gap:9px;flex:1 1 235px;
+  min-width:0;max-width:520px;height:44px;background:var(--panel);
+  border:1px solid var(--line);padding:0 13px;border-radius:12px;color:var(--muted)
+}
+.owned-collection-search:focus-within{border-color:var(--accent)}
+.owned-collection-search span{font-size:21px}
+.owned-collection-search input{
+  width:100%;border:0;background:transparent;color:var(--text);
+  outline:none;font:inherit;font-size:13px
+}
+.owned-collection-search input::placeholder{color:var(--muted)}
+.owned-collection-toolbar-actions{display:flex;gap:7px;flex-wrap:wrap}
+.owned-view-button{
+  height:44px;cursor:pointer;padding:0 13px;background:var(--panel);color:var(--muted);
+  border:1px solid var(--line);border-radius:11px;font-size:12px;font-weight:750;
+  white-space:nowrap
+}
+.owned-view-button:hover:not(:disabled){color:var(--text);border-color:var(--accent)}
+.owned-view-button.active{
+  color:var(--text);
+  background:color-mix(in srgb,var(--accent) 12%,var(--panel));
+  border-color:color-mix(in srgb,var(--accent) 65%,var(--line))
+}
+.owned-view-button:disabled{opacity:.48;cursor:default}
+.owned-filter-panel{
+  display:grid;grid-template-columns:repeat(3,minmax(145px,1fr));gap:12px;
+  padding:17px;margin:0 0 14px;background:var(--panel);
+  border:1px solid var(--line);border-radius:16px
+}
+.owned-filter-panel[hidden]{display:none!important}
+.owned-filter-panel>label{display:flex;flex-direction:column;gap:7px;min-width:0;color:var(--muted);font-size:11px;font-weight:700}
+.owned-filter-panel select{
+  width:100%;height:39px;min-width:0;padding:0 10px;color:var(--text);
+  background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;font:inherit;font-size:12px
+}
+.owned-filter-panel .owned-duplicates-label{
+  flex-direction:row;align-items:center;align-self:center;
+  gap:10px;font-size:12px;color:var(--text)
+}
+.owned-duplicates-label input{width:17px;height:17px;accent-color:var(--accent)}
+#ownedClearFilters{
+  align-self:end;height:39px;padding:0 12px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel2);
+  color:var(--text);font-size:12px;font-weight:750;cursor:pointer
+}
+.owned-load-status{font-size:12px;line-height:1.45;color:var(--muted);min-height:18px;margin:6px 0 15px}
+.owned-collection-grid{
+  grid-template-columns:repeat(auto-fill,minmax(122px,165px));
+  justify-content:start;gap:14px;align-items:start
+}
+.owned-collection-grid .tcg-card:not(.duplicate) .owned-badge{display:none}
+.owned-collection-grid .tcg-card.duplicate .owned-badge{
+  display:block;background:rgba(7,10,16,.91);
+  color:#eae5ff;border-color:var(--accent)
+}
+.owned-collection-grid .tcg-card{height:100%}
+.owned-pager{margin:24px 0;display:flex;align-items:center;justify-content:center;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.owned-pager button{
+  border:1px solid var(--line);background:var(--panel);
+  color:var(--text);padding:12px 18px;border-radius:11px;cursor:pointer;font-weight:750
+}
+.owned-pager button:hover{border-color:var(--accent)}
+.owned-pager button[hidden]{display:none}
+#ownedSetsView .era-catalog{margin-top:22px}
+@media(max-width:900px){
+  .owned-filter-panel{grid-template-columns:repeat(2,minmax(145px,1fr))}
+}
+@media(max-width:650px){
+  .owned-collection-summary{gap:7px;margin-bottom:16px}
+  .owned-collection-summary>div{padding:12px 10px;border-radius:12px;gap:6px}
+  .owned-collection-summary span{font-size:10px}
+  .owned-collection-summary strong{font-size:21px}
+  .owned-collection-toolbar{align-items:stretch}
+  .owned-collection-search{max-width:none;flex-basis:100%}
+  .owned-collection-toolbar-actions{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .owned-view-button{padding:0 5px;font-size:11px;height:41px}
+  .owned-filter-panel{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
+  .owned-collection-grid{grid-template-columns:repeat(auto-fill,minmax(100px,128px));gap:9px}
+}
+@media(max-width:380px){
+  .owned-filter-panel{grid-template-columns:1fr}
+  .owned-collection-grid{grid-template-columns:repeat(auto-fill,minmax(94px,1fr))}
+}
