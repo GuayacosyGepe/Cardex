@@ -7,12 +7,9 @@ const CATALOG_LANGS=['es','en'];
 // Estas colecciones físicas del 30.º aniversario no siempre aparecen en los índices ES/EN.
 // Importación puntual de tres sets, sin descargar el catálogo japonés completo.
 const ANNIVERSARY_SET_SOURCES=[
-  // La colección principal occidental es '30th' (no M6a). Priorizar la edición española.
-  {id:'30th',langs:['es','en'],name:'Celebración 30.º Aniversario'},
-  {id:'30th-c',langs:['es','en','fr'],name:'Colección Clásica del 30.º Aniversario'},
-  // Ediciones japonesas: numeración propia, no reemplazan la colección occidental.
-  {id:'M6a',langs:['ja'],name:'30th CELEBRATION (Japón)'},
-  {id:'MF',langs:['ja'],name:'30th CELEBRATION · Espeon y Umbreon (Japón)'}
+  // Solo expansiones occidentales del 30.º aniversario en español.
+  {id:'30th',langs:['es'],name:'Celebración 30.º Aniversario'},
+  {id:'30th-c',langs:['es'],name:'Colección Clásica del 30.º Aniversario'}
 ];
 const THEME_KEY='carddex_theme_v1';
 const VALID_THEMES=new Set(['dark','light','system']);
