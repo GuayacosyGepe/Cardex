@@ -172,6 +172,7 @@ async function loadCatalog(){
     renderLibrary();
     renderMyCollectionSets();
     updateCatalogStats();
+    window.CardDexOwned?.refresh();
   }catch(err){
     console.error(err);
     $('#allCards').innerHTML='<div class="empty">No se pudo cargar el catálogo completo. CardDex necesita conexión a Internet para consultar TCGdex.</div>';
@@ -381,6 +382,7 @@ async function fetchRemoteState(){
   }finally{suppressRemoteSync=false}
   remoteDataReady=true;
   updateHomeStats();renderWishlist();renderGoals();updatePlanningBadges();updateGoalSelect();renderMyCollectionSets();renderAuthUser();updateSyncUI();
+  window.CardDexOwned?.refresh(true);
 }
 async function handleBackendSession(session){
   remoteUser=session?.user||null;remoteDataReady=false;
@@ -453,6 +455,7 @@ function setCount(cardId,value){
   if(activeGoalId)renderGoalDetail(activeGoalId);
   updatePlanningBadges();
   updatePlanningControls(currentCard,currentCardFull);
+  window.CardDexOwned?.refresh();
 }
 function totalCopies(){return Object.values(collection).reduce((a,b)=>a+Number(b||0),0)}
 function uniqueOwned(){return Object.values(collection).filter(v=>Number(v)>0).length}
@@ -593,8 +596,12 @@ function showView(id,navId=id){
   $('#'+id)?.classList.add('active-view');
   $$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===navId));
   window.scrollTo({top:0,behavior:'instant'});
+  if(id==='mycollection')window.CardDexOwned?.activate();
 }
-$$('.nav').forEach(b=>b.onclick=()=>showView(b.dataset.view));
+$('.nav').forEach(b=>b.onclick=()=>{
+  showView(b.dataset.view);
+  if(b.dataset.view==='mycollection')setCollectionTab('cards');
+});
 $('#seeAll').onclick=()=>showView('expansions');
 $$('input[name="carddexTheme"]').forEach(input=>input.addEventListener('change',()=>{
   if(!input.checked)return;
@@ -1317,13 +1324,15 @@ function updatePlanningBadges(){
   if(g)g.textContent=goals.length;
 }
 function setCollectionTab(name){
-  $$('.collection-tab').forEach(b=>b.classList.toggle('active',b.dataset.collectionTab===name));
-  ['sets','wishlist','goals'].forEach(tab=>{
+  const selected=['cards','wishlist','goals'].includes(name)?name:'cards';
+  $('.collection-tab').forEach(b=>b.classList.toggle('active',b.dataset.collectionTab===selected));
+  ['cards','wishlist','goals'].forEach(tab=>{
     const el=$(`#collectionTab${tab.charAt(0).toUpperCase()+tab.slice(1)}`);
-    if(el){el.hidden=tab!==name;el.classList.toggle('active',tab===name)}
+    if(el){el.hidden=tab!==selected;el.classList.toggle('active',tab===selected)}
   });
-  if(name==='wishlist')renderWishlist();
-  if(name==='goals'){activeGoalId=null;$('#goalDetail').hidden=true;$('#goalsGrid').hidden=false;renderGoals()}
+  if(selected==='cards')window.CardDexOwned?.activate();
+  if(selected==='wishlist')renderWishlist();
+  if(selected==='goals'){activeGoalId=null;$('#goalDetail').hidden=true;$('#goalsGrid').hidden=false;renderGoals()}
 }
 function initCollectionPlanning(){
   $$('.collection-tab').forEach(b=>b.addEventListener('click',()=>setCollectionTab(b.dataset.collectionTab)));
@@ -1443,7 +1452,7 @@ async function logoutDemoUser(){
 }
 function navigateAccountShortcut(action){
   closeUserMenu();
-  if(action==='collection'){showView('mycollection');setCollectionTab('sets')}
+  if(action==='collection'){showView('mycollection');setCollectionTab('cards')}
   if(action==='wishlist'){showView('mycollection');setCollectionTab('wishlist')}
   if(action==='goals'){showView('mycollection');setCollectionTab('goals')}
   if(action==='settings'){showView('settings')}
