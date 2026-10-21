@@ -715,7 +715,7 @@ const CLASSIC_30_ENGLISH_IMAGES=Object.freeze([
   '101','106p','106m','106','108','114','123','138','149','203'
 ]);
 function classicEnglishImageUrl(card,quality='low'){
-  const match=/^30th-c-(\\d{1,3})$/i.exec(String(card?.id||''));
+  const match=/^30th-c-(\d{1,3})$/i.exec(String(card?.id||''));
   const index=match?Number(match[1]):0;
   const original=CLASSIC_30_ENGLISH_IMAGES[index-1];
   if(!original)return '';
