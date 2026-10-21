@@ -706,10 +706,64 @@ function sortCards(a,b){
   if(Number.isFinite(an)&&Number.isFinite(bn)&&an!==bn)return an-bn;
   return String(a.localId).localeCompare(String(b.localId),undefined,{numeric:true});
 }
-function imageUrl(card,quality='low'){
-  if(!card?.image)return '';
-  return `${card.image}/${quality}.webp`;
+// Fallback temporal de las 30 cartas retro: TCGdex identifica las cartas 001–030,
+// pero las imágenes inglesas preservan la numeración original de cada reimpresión.
+// Pooka CDN es una fuente externa provisional, no una copia alojada en CardDex.
+const CLASSIC_30_ENGLISH_IMAGES=Object.freeze([
+  '4','5','11','11g','18','19','25','33','41','43',
+  '47','50','57','58','69','85','89','94','99','100',
+  '101','106p','106m','106','108','114','123','138','149','203'
+]);
+function classicEnglishImageUrl(card,quality='low'){
+  const match=/^30th-c-(\\d{1,3})$/i.exec(String(card?.id||''));
+  const index=match?Number(match[1]):0;
+  const original=CLASSIC_30_ENGLISH_IMAGES[index-1];
+  if(!original)return '';
+  return `https://cdn.pooka.app/card/en-me55c-${original}.png${quality==='low'?'?size=small':''}`;
 }
+function imageUrl(card,quality='low'){
+  if(card?.image)return `${card.image}/${quality}.webp`;
+  return classicEnglishImageUrl(card,quality);
+}
+function classicImageNotice(isFallback){
+  let note=document.querySelector('#classicEnglishImageNotice');
+  if(!note){
+    note=document.createElement('div');
+    note.id='classicEnglishImageNotice';
+    note.className='classic-image-notice';
+    note.innerHTML='Imagen provisional en inglés · Fuente: <a href="https://pooka.app/list/set/cards/en-me55c/30th%20Celebration%3A%20Classic%20Collection" target="_blank" rel="noopener noreferrer">Pooka</a>';
+    document.querySelector('#cardModalTitle')?.insertAdjacentElement('afterend',note);
+  }
+  note.hidden=!isFallback;
+}
+// Si TCGdex proporciona una URL pero el escaneo falla, se prueba la versión inglesa.
+document.addEventListener('error',event=>{
+  const img=event.target;
+  if(!(img instanceof HTMLImageElement)||!img.matches('.tcg-card-image img,#cardModalImage'))return;
+  const modal=img.id==='cardModalImage';
+  const id=modal?currentCard?.id:img.closest('.tcg-card')?.dataset.cardId;
+  const fallback=classicEnglishImageUrl({id},modal?'high':'low');
+  if(!fallback)return;
+  if(img.dataset.classicFallback!=='used'&&img.src!==fallback){
+    img.dataset.classicFallback='used';
+    img.src=fallback;
+    img.title='Imagen provisional en inglés · Fuente: Pooka';
+    if(modal)classicImageNotice(true);
+    else img.closest('.tcg-card-image')?.setAttribute('data-image-language','EN');
+    return;
+  }
+  // Si la fuente temporal también fallase, evita mostrar un icono de imagen rota.
+  if(modal){
+    img.style.visibility='hidden';
+    classicImageNotice(false);
+  }else{
+    const missing=document.createElement('span');
+    missing.className='no-card-image';
+    missing.textContent='Imagen pendiente';
+    img.replaceWith(missing);
+    missing.parentElement?.removeAttribute('data-image-language');
+  }
+},true);
 function renderCardSkeletons(selector,count=18){
   $(selector).innerHTML=Array.from({length:count},()=>'<div class="skeleton-card"></div>').join('');
 }
@@ -718,7 +772,7 @@ function cardTile(card,{collectionMode=false}={}){
   const img=imageUrl(card,'low');
   return `<article class="tcg-card ${owned?'owned':''}" data-card-id="${escapeHtml(card.id)}">
     <span class="owned-badge">×${count}</span>
-    <div class="tcg-card-image">${img?`<img loading="lazy" src="${img}" alt="${escapeHtml(card.name)}">`:'<span class="no-card-image">Sin imagen</span>'}</div>
+    <div class="tcg-card-image" ${!card.image&&classicEnglishImageUrl(card)?'data-image-language="EN"':''}>${img?`<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(card.name)}" title="${!card.image&&classicEnglishImageUrl(card)?'Imagen provisional en inglés · Fuente: Pooka':''}">`:'<span class="no-card-image">Sin imagen</span>'}</div>
     <div class="tcg-card-name">${escapeHtml(card.name)}</div>
     <div class="tcg-card-number">#${escapeHtml(String(card.localId))}</div>
   </article>`;
@@ -903,8 +957,13 @@ function updateCardmarketPrice(full){
   box.hidden=false;
 }
 function fillCardModal(brief,full){
-  $('#cardModalImage').src=imageUrl(brief,'high');
-  $('#cardModalImage').alt=brief.name;
+  const modalImage=$('#cardModalImage');
+  modalImage.style.visibility='visible';
+  delete modalImage.dataset.classicFallback;
+  modalImage.title=!brief.image&&classicEnglishImageUrl(brief)?'Imagen provisional en inglés · Fuente: Pooka':'';
+  modalImage.src=imageUrl(brief,'high');
+  modalImage.alt=brief.name;
+  classicImageNotice(!brief.image&&Boolean(classicEnglishImageUrl(brief)));
   $('#cardModalTitle').textContent=brief.name;
   $('#cardModalSet').textContent=(full?.set?.name || currentSet?.name || currentPokemon?.displayName || 'CARTA').toUpperCase();
   $('#cardCount').textContent=countFor(brief.id);
