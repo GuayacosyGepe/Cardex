@@ -294,8 +294,10 @@
     }
     updateSetChoices();
     render();
-    if(changed || force)hydrateOwnedCards();
-    if(metadataRequired()&&!metadataBusy&&!fullInfoPromise)enrichForFilters();
+    // Evita disparar decenas de peticiones si la persona está en Inicio u otra sección.
+    const visible=Boolean($owned('#mycollection')?.classList.contains('active-view') && !$owned('#collectionTabCards')?.hidden && layout==='cards');
+    if(visible && !hydrationBusy)hydrateOwnedCards();
+    if(visible && metadataRequired()&&!metadataBusy&&!fullInfoPromise)enrichForFilters();
   }
   function activate(){
     if(!$owned('#mycollection')?.classList.contains('active-view'))return;
