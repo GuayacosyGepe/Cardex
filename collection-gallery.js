@@ -62,6 +62,9 @@
   }
   // A diferencia del filtro EX/ex, aquí la rareza debe ser especial: el nombre
   // Charizard ex no basta para contar como HIT premium si es una Double Rare.
+  function needsClassification(card){
+    return !card?.full||(!card?.rarity&&!card?.rarityChecked);
+  }
   function isPremiumHit(card){
     // TCGdex conserva rarezas históricas y etiquetas en varios idiomas.
     // Las ex/GX/V convencionales, Double Rare y holográficas normales NO cuentan.
@@ -88,6 +91,7 @@
   }
   function setHitsMode(mode){
     hitsMode=hitsMode===mode?'all':mode;
+    if(hitsMode!=='all')detailFailures.clear(); // Permite reintentar la clasificación.
     [['galleryHitsOnly','ex'],['galleryPremiumOnly','premium']].forEach(([id,value])=>{
       const btn=$('#'+id);
       if(!btn)return;
@@ -118,7 +122,7 @@
       else without++;
     }
     const classificationPending=view==='cards' && advanced() &&
-      entries.some(item=>!cache.get(item.id)?.full && !detailFailures.has(item.id));
+      entries.some(item=>needsClassification(cache.get(item.id))&&!detailFailures.has(item.id));
     amount.textContent=classificationPending?'Clasificando…':
       items.length===0?formatEur.format(0):
       valued?formatEur.format(total):pendingCount&&priceLoading?'Calculando…':'Sin valoración';
@@ -194,7 +198,9 @@
       ...before,id:data.id,name:data.name,localId:data.localId||before.localId||data.id.split('-').at(-1),
       image:data.image||before.image||'',setId:setOf(data.id),
       category:data.category||before.category||'',rarity:data.rarity||before.rarity||'',
-      types:data.types||before.types||[], full:full||before.full||false
+      types:data.types||before.types||[],
+      full:full||before.full||false,
+      rarityChecked:full||Boolean(before.rarityChecked)
     });
   }
   function seed(){
@@ -324,7 +330,7 @@
     filteredPriceEntries=results;
     matched=results.map(({id})=>cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''});
     renderValue(results);
-    const classificationPending=advanced()&&entries.some(x=>!cache.get(x.id)?.full&&!detailFailures.has(x.id));
+    const classificationPending=advanced()&&entries.some(x=>needsClassification(cache.get(x.id))&&!detailFailures.has(x.id));
     const classificationFailed=advanced()?entries.filter(x=>detailFailures.has(x.id)).length:0;
     $('#galleryCards').innerHTML=results.slice(0,visible).map(({id,quantity})=>{
       const card=cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''};
@@ -371,7 +377,7 @@
   }
   async function maybeDetail(){
     if(!advanced()||detailLoading||!isCurrent())return;
-    const list=entries.filter(x=>!cache.get(x.id)?.full&&!detailFailures.has(x.id)).map(x=>x.id);
+    const list=entries.filter(x=>needsClassification(cache.get(x.id))&&!detailFailures.has(x.id)).map(x=>x.id);
     if(!list.length){render();return}
     detailLoading=true;const gen=sequence;let index=0;
     classifiedTotal=list.length;classifiedCount=0;
