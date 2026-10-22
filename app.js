@@ -1398,8 +1398,18 @@ function renderAuthUser(){
   const logged=Boolean(authUser.loggedIn);
   const avatar=logged?authAvatarUrl(authUser):'avatar-placeholder.svg';
   const avatarButton=$('#userMenuButton');
-  $('#userAvatarImage').src=avatar;
-  $('#dropdownAvatarImage').src=avatar;
+  // Evita volver a descargar el sprite en cada actualización del estado de cuenta
+  // y conserva el fallback si la fuente principal ha fallado.
+  const avatarKey=logged?`${authUser.avatarPokemonId||25}:${authUser.avatarStyle||'pixel'}:${avatar}`:'guest';
+  for(const image of [$('#userAvatarImage'),$('#dropdownAvatarImage')]){
+    if(!image)continue;
+    if(image._carddexAvatarKey!==avatarKey){
+      image._carddexAvatarKey=avatarKey;
+      image.style.visibility='';
+      image.src=avatar;
+      image.style.imageRendering=avatar.includes('/official-artwork/')?'auto':'pixelated';
+    }
+  }
   avatarButton.classList.toggle('logged-out',!logged);
   $('#accountDisplayName').textContent=logged?(authUser.name||'Usuario CardDex'):'Invitado';
   $('#accountDisplayEmail').textContent=logged?(authUser.email||''):'Sin sesión iniciada';
@@ -1448,11 +1458,56 @@ function navigateAccountShortcut(action){
   if(action==='goals'){showView('mycollection');setCollectionTab('goals')}
   if(action==='settings'){showView('settings')}
 }
-function avatarSpriteUrl(id,style='pixel'){
-  const safeId=Math.max(1,Math.min(1025,Number(id)||25));
-  if(style==='icon')return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-viii/icons/${safeId}.png`;
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/${safeId}.png`;
+const AVATAR_LOCAL_FALLBACK='avatar-placeholder.svg';
+function avatarPokemonId(id){
+  const number=Number(id);
+  return Number.isInteger(number)&&number>=1&&number<=1025?number:25;
 }
+function avatarSpriteCandidates(id,style='pixel'){
+  const safeId=avatarPokemonId(id);
+  const paths=[];
+  // Los sprites de Blanco/Negro terminan en la generación 5: jamás solicitar
+  // este archivo para Pokémon posteriores, porque provocaría imágenes rotas.
+  if(style!=='icon'&&safeId<=649)
+    paths.push(`versions/generation-v/black-white/${safeId}.png`);
+  // Los mini iconos de generación 8 no incluyen la generación 9.
+  if(style==='icon'&&safeId<=898)
+    paths.push(`versions/generation-viii/icons/${safeId}.png`);
+  paths.push(`${safeId}.png`,`other/official-artwork/${safeId}.png`);
+  const raw='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
+  const cdn='https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/';
+  // Segundo servidor, otros tipos de imagen, y al final un recurso local.
+  return [...paths.flatMap(path=>[raw+path,cdn+path]),AVATAR_LOCAL_FALLBACK];
+}
+function avatarSpriteUrl(id,style='pixel'){
+  return avatarSpriteCandidates(id,style)[0];
+}
+function handleAvatarImageError(event){
+  const img=event.target;
+  if(!(img instanceof HTMLImageElement))return;
+  const picker=img.closest('.avatar-choice[data-avatar-pokemon]');
+  const profile=img.id==='userAvatarImage'||img.id==='dropdownAvatarImage';
+  if(!picker&&!profile)return;
+  const id=picker?picker.dataset.avatarPokemon:authUser?.avatarPokemonId;
+  const style=picker?avatarPickerStyle:(authUser?.avatarStyle||'pixel');
+  const candidates=avatarSpriteCandidates(id,style);
+  const current=img.getAttribute('src')||'';
+  if(current===AVATAR_LOCAL_FALLBACK){
+    img.style.visibility='hidden'; // Evita el icono roto incluso si fallara el recurso local.
+    return;
+  }
+  const ordered=profile&&authUser?.loggedIn
+    ?[authAvatarUrl(authUser),...candidates.filter(url=>url!==authAvatarUrl(authUser))]
+    :candidates;
+  const index=ordered.indexOf(current);
+  const next=ordered[index+1]||AVATAR_LOCAL_FALLBACK;
+  if(next===current)return;
+  img.style.visibility='';
+  img.style.imageRendering=next.includes('/official-artwork/')?'auto':'pixelated';
+  img.src=next;
+}
+// Captura también los fallos de los iconos cargados de forma diferida en el selector.
+document.addEventListener('error',handleAvatarImageError,true);
 function authAvatarUrl(user=authUser){
   // Compatibilidad con versiones anteriores: si existía una foto local, se conserva
   // hasta que el usuario elija un avatar Pokémon.
@@ -1470,7 +1525,7 @@ function renderAvatarPicker(){
   const q=normalizeText($('#avatarSearch')?.value||'');
   const list=avatarPokemonList().filter(p=>!q||normalizeText(p.displayName||p.name).includes(q)||String(p.id).includes(q));
   grid.innerHTML=list.map(p=>`<button type="button" class="avatar-choice ${Number(authUser.avatarPokemonId)===p.id&&authUser.avatarStyle===avatarPickerStyle?'selected':''}" data-avatar-pokemon="${p.id}" title="${escapeHtml(p.displayName||prettyName(p.name))}">
-    <span class="avatar-choice-image"><img loading="lazy" src="${avatarSpriteUrl(p.id,avatarPickerStyle)}" alt=""></span>
+    <span class="avatar-choice-image"><img loading="lazy" src="${avatarSpriteUrl(p.id,avatarPickerStyle)}" alt="" aria-hidden="true"></span>
     <strong>${escapeHtml(p.displayName||prettyName(p.name))}</strong><small>#${String(p.id).padStart(4,'0')}</small>
   </button>`).join('')||'<div class="empty">No encontramos ese Pokémon.</div>';
   grid.querySelectorAll('[data-avatar-pokemon]').forEach(button=>button.addEventListener('click',()=>{
