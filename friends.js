@@ -324,6 +324,7 @@
        <label class="friend-full-check"><input id="friendAllMissing" type="checkbox"> Solo las que me faltan</label>
      </div>
      <p id="friendAllCount" class="friend-full-count"></p>
+     <p class="friend-card-hint">Pulsa cualquier carta para abrir su ficha completa.</p>
      <div id="friendAllCards" class="friend-full-grid"></div>
      <button id="friendAllMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
    </section>
