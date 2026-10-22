@@ -2,7 +2,7 @@
  'use strict';
  const $=s=>document.querySelector(s),esc=x=>escapeHtml(String(x??''));
  const PAGE=60,offers=new Map(),meta=new Map();
- let owner=null,loading=false,saving=false,currentId=null,draft=0,mode='offered',page=PAGE,modalContext=null;
+ let owner=null,loading=false,loadingUid=null,saving=false,currentId=null,draft=0,mode='offered',page=PAGE,modalContext=null;
  function ready(){return Boolean(typeof remoteUser!=='undefined'&&remoteUser?.id&&typeof remoteDataReady!=='undefined'&&remoteDataReady&&typeof supabaseClient!=='undefined'&&supabaseClient)}
  function owned(id){return typeof countFor==='function'?countFor(id):0}
  function active(){return $('#collectionTabTrade')?.hidden===false}
@@ -10,8 +10,9 @@
  function clamp(){for(const [id,q] of offers){const n=Math.min(q,owned(id));if(n<=0)offers.delete(id);else if(n!==q)offers.set(id,n)}}
  async function load(){
    if(!ready()){owner=null;offers.clear();draw();modalUI();return}
-   const uid=remoteUser.id;owner=uid;if(loading)return;
-   loading=true;draw();
+   const uid=remoteUser.id;
+   if(loadingUid===uid)return;
+   owner=uid;loadingUid=uid;loading=true;draw();
    let all=[];
    try{
      for(let offset=0;offset<50000;offset+=500){
@@ -25,7 +26,7 @@
      offers.clear();all.forEach(x=>{if(x.available_quantity>0)offers.set(x.card_id,Number(x.available_quantity))});
      clamp();feedback('');
    }catch(e){if(ready()&&remoteUser.id===uid)feedback('Error cargando ofertas: '+e.message,true)}
-   finally{loading=false;if(owner===uid){draw();modalUI()}}
+   finally{if(owner===uid){loadingUid=null;loading=false;draw();modalUI()}}
  }
  function modalUI(){
    const block=$('#tradeCardControls'),card=typeof currentCard!=='undefined'?currentCard:null;
@@ -126,8 +127,9 @@
  }
  async function openOwn(id){
    if(!ready()||!active()||$('#cardModal').classList.contains('open'))return;
+   const uid=remoteUser.id;
    let card;try{card=await info(id)}catch{card={id,name:id,localId:id.split('-').at(-1)}}
-   if(!ready()||!active()||$('#cardModal').classList.contains('open'))return;
+   if(!ready()||remoteUser.id!==uid||!active()||$('#cardModal').classList.contains('open'))return;
    modalContext={set:currentSet,setCards:currentSetCards,visibleCards:currentVisibleCards,pokemon:currentPokemon,card:currentCard,full:currentCardFull};
    currentSet=null;currentSetCards=[];currentVisibleCards=[card];currentPokemon=null;
    try{await openCard(id)}catch(e){restore();feedback(e.message,true)}
@@ -152,7 +154,7 @@
      .observe($('#collectionTabTrade'),{attributes:true,attributeFilter:['hidden']});
    const sync=$('#syncStatusBadge');
    if(sync)new MutationObserver(()=>{
-     if(!ready()){owner=null;offers.clear();draw();modalUI()}
+     if(!ready()){owner=null;loadingUid=null;loading=false;offers.clear();draw();modalUI()}
      else if(owner!==remoteUser.id)load();
    }).observe(sync,{childList:true,subtree:true,characterData:true});
    if(ready())load();else draw();
