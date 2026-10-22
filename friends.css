@@ -73,3 +73,12 @@
  .friend-full-card .friend-trade-quantity{top:11px;right:11px}
  .friend-full-toolbar>label:first-child{max-width:none}
 }
+
+/* Clic en una carta: abre la misma ficha de detalle que el buscador. */
+.friend-trade-entry[data-trade-id]{cursor:pointer;transition:background .14s ease,border-color .14s ease}
+.friend-trade-entry[data-trade-id]:hover{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+.friend-trade-entry[data-trade-id]:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:9px}
+.friend-trade-entry[data-trade-id].opening-card{opacity:.7;cursor:progress}
+.friend-full-card[data-trade-id]:hover{border-color:color-mix(in srgb,var(--accent) 58%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.friend-full-card[data-trade-id]:focus-visible{outline-offset:2px;border-color:var(--accent)}
+.friend-card-hint{color:var(--muted);font-size:12px;margin:0 0 13px;line-height:1.5}

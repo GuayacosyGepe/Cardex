@@ -98,7 +98,7 @@
  function tradeGroup(title,items,empty){
    const rows=items.slice(0,100);
    return `<section class="friend-trade-group"><h3>${esc(title)} <span>${items.length}</span></h3>
-   <div class="friend-trade-list">${rows.length?rows.map(x=>`<div class="friend-trade-entry" data-trade-id="${esc(x.id)}">
+   <div class="friend-trade-list">${rows.length?rows.map(x=>`<div class="friend-trade-entry" data-trade-id="${esc(x.id)}" role="button" tabindex="0" aria-label="Ver ficha de la carta ${esc(x.id)}">
      <span class="friend-trade-thumb" aria-hidden="true"><span class="friend-trade-placeholder">▤</span><img loading="lazy" decoding="async" alt="" width="58" height="81"></span>
      <span class="friend-trade-meta"><span class="friend-trade-name">Buscando carta…</span><small>${esc(x.id)}</small></span>
      <strong class="friend-trade-quantity">×${x.quantity}</strong>
@@ -225,7 +225,7 @@
    const cards=friendCollectionFilter();
    const showing=cards.slice(0,state.friendPage);
    $('#friendAllCount').textContent=`${cards.length} de ${state.friendCards.length} cartas diferentes`;
-   grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}">
+   grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}" role="button" tabindex="0" aria-label="Ver ficha de la carta ${esc(item.id)}">
      <span class="friend-trade-thumb" aria-hidden="true">
        <span class="friend-trade-placeholder">▤</span>
        <img loading="lazy" decoding="async" alt="" width="132" height="184">
@@ -324,11 +324,12 @@
        <label class="friend-full-check"><input id="friendAllMissing" type="checkbox"> Solo las que me faltan</label>
      </div>
      <p id="friendAllCount" class="friend-full-count"></p>
+     <p class="friend-card-hint">Pulsa cualquier carta para abrir su ficha completa.</p>
      <div id="friendAllCards" class="friend-full-grid"></div>
      <button id="friendAllMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
    </section>
    <section id="friendTradesPanel" hidden>
-     <p class="friend-trades-intro">Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1.</p>
+     <p class="friend-trades-intro">Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1. Pulsa una carta para ver su ficha completa.</p>
      <div class="friends-trade-grid">
        ${tradeGroup('Repetidas que te faltan',theyHave,'Tu amigo no tiene repetidas que te falten.')}
        ${tradeGroup('Tus repetidas que le faltan',iHave,'No tienes repetidas que le falten a tu amigo.')}
@@ -336,6 +337,79 @@
    </section>`;
    $('#friendsCloseComparison').onclick=()=>{state.selected=null;state.friendCards=[];$('#friendsComparison').hidden=true};
    setupFriendCollection(theirs);
+ }
+ // Reutilizar exactamente el modal del buscador, sin duplicar la ficha.
+ // El contexto global de cartas se restaura cuando se cierra el modal.
+ let friendModalContext=null;
+ function restoreFriendModalContext(){
+   if(!friendModalContext)return;
+   const before=friendModalContext;
+   friendModalContext=null;
+   currentSet=before.set;
+   currentSetCards=before.setCards;
+   currentVisibleCards=before.visibleCards;
+   currentPokemon=before.pokemon;
+   currentCard=before.card;
+   currentCardFull=before.full;
+ }
+ async function openFriendCard(row){
+   if(!row||row.dataset.opening==='true'||!active()||!session()||!state.selected)return;
+   if(!state.friendships.some(f=>f.id===state.selected&&f.status==='accepted'))return;
+   if($('#cardModal')?.classList.contains('open'))return;
+   const id=row.dataset.tradeId;
+   if(!id)return;
+   const selected=state.selected,owner=remoteUser.id;
+   row.dataset.opening='true';
+   row.classList.add('opening-card');
+   try{
+     let card;
+     try{card=await tradeCardWithImage(id)}
+     catch{
+       // Aun sin ficha descargada, permitir abrir el modal con los datos disponibles.
+       card={id,name:row.querySelector('.friend-trade-name')?.textContent||id};
+     }
+     if(!session()||remoteUser.id!==owner||state.selected!==selected||!active()||!row.isConnected)return;
+     if($('#cardModal')?.classList.contains('open'))return;
+     const brief={
+       ...card,id,
+       name:card?.name||id,
+       localId:card?.localId||id.split('-').at(-1)
+     };
+     friendModalContext={
+       set:currentSet,setCards:currentSetCards,visibleCards:currentVisibleCards,
+       pokemon:currentPokemon,card:currentCard,full:currentCardFull
+     };
+     currentSet=null;
+     currentSetCards=[];
+     currentVisibleCards=[brief];
+     currentPokemon=null;
+     try{await openCard(id)}
+     catch(error){
+       restoreFriendModalContext();
+       status('No se pudo abrir la ficha: '+(error?.message||'error desconocido'),true);
+     }
+   }finally{
+     row.dataset.opening='false';
+     row.classList.remove('opening-card');
+   }
+ }
+ function bindFriendCardModal(){
+   const comparison=$('#friendsComparison'),modal=$('#cardModal');
+   if(!comparison||!modal)return;
+   comparison.addEventListener('click',event=>{
+     const row=event.target.closest('.friend-trade-entry[data-trade-id]');
+     if(row&&comparison.contains(row))openFriendCard(row).catch(console.warn);
+   });
+   comparison.addEventListener('keydown',event=>{
+     if(event.key!=='Enter'&&event.key!==' ')return;
+     const row=event.target.closest('.friend-trade-entry[data-trade-id]');
+     if(!row||!comparison.contains(row))return;
+     event.preventDefault();
+     openFriendCard(row).catch(console.warn);
+   });
+   new MutationObserver(()=>{
+     if(!modal.classList.contains('open'))restoreFriendModalContext();
+   }).observe(modal,{attributes:true,attributeFilter:['class']});
  }
  function renderShell(){
    const root=$('#friends');if(!root)return;
@@ -355,6 +429,7 @@
    $('#friendCopyCode').onclick=async()=>{const code=$('#myFriendCode').textContent;if(code.startsWith('CD-')){try{await navigator.clipboard.writeText(code);status('Código copiado.')}catch{status('Selecciona y copia tu código manualmente.')}}};
    $('#friendSend').onclick=send;
    $('#friendCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+   bindFriendCardModal();
    root.addEventListener('click',e=>{
      const button=e.target.closest('[data-friend-action]');if(button)action(button.dataset.friendAction,button.dataset.id);
    });
