@@ -332,14 +332,15 @@
     renderValue(results);
     const classificationPending=advanced()&&entries.some(x=>needsClassification(cache.get(x.id))&&!detailFailures.has(x.id));
     const classificationFailed=advanced()?entries.filter(x=>detailFailures.has(x.id)).length:0;
+    const rarityMissing=advanced()?entries.filter(x=>cache.get(x.id)?.rarityChecked&&!cache.get(x.id)?.rarity).length:0;
     $('#galleryCards').innerHTML=results.slice(0,visible).map(({id,quantity})=>{
       const card=cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''};
       return cardTile(card).replace('class="tcg-card ',`class="tcg-card ${quantity>1?'gallery-duplicate ':''}`);
-    }).join('')||`<div class="empty">${!entries.length?'Todavía no tienes cartas registradas. Añádelas desde Expansiones o el Buscador.':classificationPending?'Comprobando la rareza de tus cartas…':classificationFailed?'No se encontraron coincidencias entre las cartas clasificadas. No se pudieron comprobar '+classificationFailed+' cartas.':'No hay cartas que coincidan con los filtros.'}</div>`;
+    }).join('')||`<div class="empty">${!entries.length?'Todavía no tienes cartas registradas. Añádelas desde Expansiones o el Buscador.':classificationPending?'Comprobando la rareza de tus cartas…':classificationFailed?'No se encontraron coincidencias entre las cartas clasificadas. No se pudieron comprobar '+classificationFailed+' cartas.':rarityMissing?'No se encontraron HITs clasificados. TCGdex no indica la rareza de '+rarityMissing+' cartas.':'No hay cartas que coincidan con los filtros.'}</div>`;
     $('#galleryTotal').textContent=results.length+' cartas';
     $('#galleryMore').hidden=results.length<=visible;
     $('#galleryStatus').textContent=detailLoading?'Clasificando cartas: '+classifiedCount+' / '+classifiedTotal:
-      loading?`Preparando imágenes: ${loaded} de ${pending}`:classificationFailed?'Sin datos de rareza para '+classificationFailed+' cartas.':'';
+      loading?`Preparando imágenes: ${loaded} de ${pending}`:classificationFailed?'Error consultando rarezas de '+classificationFailed+' cartas.':rarityMissing?'Sin rareza publicada para '+rarityMissing+' cartas.':'';
     $('#galleryCards').querySelectorAll('.tcg-card[data-card-id]').forEach(el=>el.addEventListener('click',()=>{
       currentSet=null;currentPokemon=null;currentSetCards=[];currentVisibleCards=matched;
       openCard(el.dataset.cardId);
