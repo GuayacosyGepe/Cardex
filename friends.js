@@ -3,7 +3,10 @@
  'use strict';
  const $=s=>document.querySelector(s);
  const esc=s=>escapeHtml(String(s??''));
- const state={friendships:[],profiles:new Map(),selected:null,friendCards:[],busy:false,loading:false};
+ const PAGE_SIZE=60;
+ const state={friendships:[],profiles:new Map(),selected:null,friendCards:[],busy:false,loading:false,
+   friendView:'all',friendPage:PAGE_SIZE};
+ const friendCardDetails=new Map();
  function active(){return $('#friends')?.classList.contains('active-view')}
  function session(){return typeof remoteUser!=='undefined'&&remoteUser?.id&&typeof supabaseClient!=='undefined'&&supabaseClient}
  function status(s,error=false){const el=$('#friendsMessage');if(el){el.textContent=s;el.classList.toggle('error',error)}}
@@ -19,7 +22,12 @@
    const logged=!!session();
    $('#friendsSignedOut').hidden=logged;
    $('#friendsSignedIn').hidden=!logged;
-   if(!logged)return;
+   if(!logged){
+     state.selected=null;
+     state.friendCards=[];
+     $('#friendsComparison').hidden=true;
+     return;
+   }
    const requests=state.friendships.filter(f=>f.status==='pending'&&f.recipient_id===remoteUser.id);
    const outgoing=state.friendships.filter(f=>f.status==='pending'&&f.requester_id===remoteUser.id);
    const friends=state.friendships.filter(f=>f.status==='accepted');
@@ -46,7 +54,7 @@
    if(!session()||remoteUser.id!==userId)return;
    draw();
    if(state.selected&&!state.friendships.some(f=>f.id===state.selected&&f.status==='accepted')){
-     state.selected=null;$('#friendsComparison').hidden=true;
+     state.selected=null;state.friendCards=[];$('#friendsComparison').hidden=true;
    }
  }
  async function initCode(){
@@ -112,17 +120,23 @@
    }
    return [...new Set(urls.filter(Boolean))];
  }
- async function tradeCardWithImage(id){
-   const card=await getCardDetail(id);
-   if(card?.image||typeof classicEnglishImageUrl==='function'&&classicEnglishImageUrl(card,'low'))return card;
-   // La ficha española puede existir sin escaneo; solo en ese caso buscamos EN.
-   if(typeof fetchJson==='function'&&typeof apiFor==='function'){
-     try{
-       const english=await fetchJson(apiFor('en')+'/cards/'+encodeURIComponent(id));
-       if(english?.image)return {...card,image:english.image};
-     }catch{}
-   }
-   return card;
+ function tradeCardWithImage(id){
+   if(friendCardDetails.has(id))return friendCardDetails.get(id);
+   const job=(async()=>{
+     const card=await getCardDetail(id);
+     if(card?.image||typeof classicEnglishImageUrl==='function'&&classicEnglishImageUrl(card,'low'))return card;
+     // Cuando falta el escaneo ES, utilizar EN sin cambiar el nombre traducido.
+     if(typeof fetchJson==='function'&&typeof apiFor==='function'){
+       try{
+         const english=await fetchJson(apiFor('en')+'/cards/'+encodeURIComponent(id));
+         if(english?.image)return {...card,image:english.image};
+       }catch{}
+     }
+     return card;
+   })();
+   friendCardDetails.set(id,job);
+   job.catch(()=>{if(friendCardDetails.get(id)===job)friendCardDetails.delete(id)});
+   return job;
  }
  function showTradeImage(row,card,selected){
    const thumb=row.querySelector('.friend-trade-thumb');
@@ -153,8 +167,10 @@
    });
    img.src=urls[0];
  }
- async function names(){
-   const rows=[...$('#friendsComparison').querySelectorAll('.friend-trade-entry[data-trade-id]')];
+ async function names(containerSelector){
+   const container=$(containerSelector);
+   if(!container)return;
+   const rows=[...container.querySelectorAll('.friend-trade-entry[data-trade-id]')];
    const byId=new Map();
    for(const row of rows){
      const id=row.dataset.tradeId;
@@ -186,27 +202,140 @@
      }
    }));
  }
+ function friendSetId(id){
+   const value=String(id||'');
+   return value.slice(0,value.lastIndexOf('-'))||value;
+ }
+ function friendSetName(id){
+   const set=typeof getSetById==='function'?getSetById(id):null;
+   return set?.name||id;
+ }
+ function friendCollectionFilter(){
+   const setId=$('#friendAllSet')?.value||'';
+   const missing=$('#friendAllMissing')?.checked||false;
+   const mine=typeof collection!=='undefined'?collection:{};
+   return state.friendCards.filter(item=>
+     (!setId||friendSetId(item.id)===setId) &&
+     (!missing||Number(mine[item.id]||0)===0)
+   );
+ }
+ function renderFriendCollection(){
+   const grid=$('#friendAllCards');
+   if(!grid||!state.selected)return;
+   const cards=friendCollectionFilter();
+   const showing=cards.slice(0,state.friendPage);
+   $('#friendAllCount').textContent=`${cards.length} de ${state.friendCards.length} cartas diferentes`;
+   grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}">
+     <span class="friend-trade-thumb" aria-hidden="true">
+       <span class="friend-trade-placeholder">▤</span>
+       <img loading="lazy" decoding="async" alt="" width="132" height="184">
+     </span>
+     <span class="friend-trade-meta">
+       <strong class="friend-trade-name">Cargando carta…</strong>
+       <small>${esc(item.id)}</small>
+       <small class="friend-full-set">${esc(friendSetName(friendSetId(item.id)))}</small>
+     </span>
+     <strong class="friend-trade-quantity">×${item.quantity}</strong>
+   </article>`).join('')||`<p class="friends-empty">${state.friendCards.length?'No hay cartas que coincidan con este filtro.':'Tu amigo todavía no tiene cartas registradas.'}</p>`;
+   const more=$('#friendAllMore');
+   more.hidden=cards.length<=state.friendPage;
+   more.textContent=`Mostrar más (${cards.length-showing.length})`;
+   if(state.friendView==='all')names('#friendAllCards').catch(console.warn);
+ }
+ function switchFriendView(view){
+   if(!state.selected)return;
+   state.friendView=view==='trades'?'trades':'all';
+   const all=state.friendView==='all';
+   $('#friendAllPanel').hidden=!all;
+   $('#friendTradesPanel').hidden=all;
+   $('#friendsComparison').querySelectorAll('[data-friend-view]').forEach(button=>{
+     const on=button.dataset.friendView===state.friendView;
+     button.classList.toggle('active',on);
+     button.setAttribute('aria-pressed',String(on));
+   });
+   if(all)renderFriendCollection();
+   else names('#friendTradesPanel').catch(console.warn);
+ }
+ function setupFriendCollection(theirs){
+   const select=$('#friendAllSet');
+   const ids=[...new Set(theirs.map(item=>friendSetId(item.id)))];
+   ids.sort((a,b)=>friendSetName(a).localeCompare(friendSetName(b),'es'));
+   select.innerHTML='<option value="">Todas las expansiones</option>'+
+     ids.map(id=>`<option value="${esc(id)}">${esc(friendSetName(id))}</option>`).join('');
+   select.addEventListener('change',()=>{state.friendPage=PAGE_SIZE;renderFriendCollection()});
+   $('#friendAllMissing').addEventListener('change',()=>{state.friendPage=PAGE_SIZE;renderFriendCollection()});
+   $('#friendAllMore').addEventListener('click',()=>{state.friendPage+=PAGE_SIZE;renderFriendCollection()});
+   $('#friendsComparison').querySelectorAll('[data-friend-view]').forEach(button=>
+     button.addEventListener('click',()=>switchFriendView(button.dataset.friendView)));
+   switchFriendView('all');
+ }
+ async function fetchAllFriendCards(target){
+   // Supabase devuelve como máximo una página por solicitud: no truncar las colecciones grandes.
+   const output=[],limit=500;
+   for(let offset=0;offset<50000;offset+=limit){
+     const result=await supabaseClient.from('collection_items')
+       .select('card_id,quantity').eq('user_id',target)
+       .order('card_id',{ascending:true}).range(offset,offset+limit-1);
+     if(result.error)throw result.error;
+     const batch=result.data||[];
+     output.push(...batch);
+     if(batch.length<limit)return output;
+   }
+   throw new Error('La colección supera el límite de carga permitido.');
+ }
  async function compare(f){
    if(f.status!=='accepted'||!session())return;
    const target=uid(f),ownUser=remoteUser.id;
    state.selected=f.id;
+   state.friendView='all';
+   state.friendPage=PAGE_SIZE;
+   state.friendCards=[];
    $('#friendsComparison').hidden=false;
-   $('#friendsComparison').innerHTML='<p class="friends-empty">Comparando colecciones…</p>';
-   const result=await supabaseClient.from('collection_items').select('card_id,quantity').eq('user_id',target);
-   if(result.error){$('#friendsComparison').innerHTML='<p class="friends-empty">No se pudo abrir la colección: '+esc(result.error.message)+'</p>';return}
+   $('#friendsComparison').innerHTML='<p class="friends-empty">Cargando colección de tu amigo…</p>';
+   let rows;
+   try{rows=await fetchAllFriendCards(target)}
+   catch(error){
+     if(session()&&remoteUser.id===ownUser&&state.selected===f.id)
+       $('#friendsComparison').innerHTML='<p class="friends-empty">No se pudo abrir la colección: '+esc(error.message||'Error de conexión')+'</p>';
+     return;
+   }
    if(!session()||remoteUser.id!==ownUser||state.selected!==f.id)return;
-   const theirs=(result.data||[]).filter(x=>Number(x.quantity)>0);
+   const theirs=rows.filter(x=>Number(x.quantity)>0).map(x=>({id:x.card_id,quantity:Number(x.quantity)}));
+   state.friendCards=theirs;
    const mine=typeof collection!=='undefined'?collection:{};
    const theyHave=theirs.filter(x=>Number(x.quantity)>1&&Number(mine[x.card_id]||0)===0)
      .map(x=>({id:x.card_id,quantity:x.quantity-1}));
-   const iHave=Object.entries(mine).filter(([id,q])=>Number(q)>1&&!theirs.some(c=>c.card_id===id))
+   const friendCardIds=new Set(theirs.map(c=>c.id));
+   const iHave=Object.entries(mine).filter(([id,q])=>Number(q)>1&&!friendCardIds.has(id))
      .map(([id,q])=>({id,quantity:Number(q)-1}));
    const friendUnique=theirs.length,friendCopies=theirs.reduce((n,x)=>n+Number(x.quantity),0);
-   $('#friendsComparison').innerHTML=`<div class="friend-compare-top"><button id="friendsCloseComparison" type="button">← Volver a amigos</button><h2>Colección de ${esc(profile(target))}</h2><p>${friendUnique} cartas distintas · ${friendCopies} ejemplares</p><small>Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1.</small></div><div class="friends-trade-grid">
-   ${tradeGroup('Repetidas que te faltan',theyHave,'Tu amigo no tiene repetidas que te falten.')}
-   ${tradeGroup('Tus repetidas que le faltan',iHave,'No tienes repetidas que le falten a tu amigo.')}</div>`;
-   $('#friendsCloseComparison').onclick=()=>{state.selected=null;$('#friendsComparison').hidden=true};
-   names().catch(console.warn);
+   $('#friendsComparison').innerHTML=`<div class="friend-compare-top">
+     <button id="friendsCloseComparison" type="button">← Volver a amigos</button>
+     <h2>Colección de ${esc(profile(target))}</h2>
+     <p>${friendUnique} cartas distintas · ${friendCopies} ejemplares</p>
+   </div>
+   <div class="friend-view-tabs" role="group" aria-label="Qué mostrar de la colección">
+     <button type="button" class="active" data-friend-view="all" aria-pressed="true">▦ Colección completa</button>
+     <button type="button" data-friend-view="trades" aria-pressed="false">⇄ Intercambios</button>
+   </div>
+   <section id="friendAllPanel">
+     <div class="friend-full-toolbar">
+       <label>Expansión <select id="friendAllSet"><option value="">Todas las expansiones</option></select></label>
+       <label class="friend-full-check"><input id="friendAllMissing" type="checkbox"> Solo las que me faltan</label>
+     </div>
+     <p id="friendAllCount" class="friend-full-count"></p>
+     <div id="friendAllCards" class="friend-full-grid"></div>
+     <button id="friendAllMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
+   </section>
+   <section id="friendTradesPanel" hidden>
+     <p class="friend-trades-intro">Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1.</p>
+     <div class="friends-trade-grid">
+       ${tradeGroup('Repetidas que te faltan',theyHave,'Tu amigo no tiene repetidas que te falten.')}
+       ${tradeGroup('Tus repetidas que le faltan',iHave,'No tienes repetidas que le falten a tu amigo.')}
+     </div>
+   </section>`;
+   $('#friendsCloseComparison').onclick=()=>{state.selected=null;state.friendCards=[];$('#friendsComparison').hidden=true};
+   setupFriendCollection(theirs);
  }
  function renderShell(){
    const root=$('#friends');if(!root)return;

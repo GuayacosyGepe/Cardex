@@ -41,3 +41,35 @@
 .friend-trade-meta small{font-size:11px;color:var(--muted)}
 .friend-trade-entry .friend-trade-quantity{color:var(--accent);white-space:nowrap;margin-left:auto;font-size:13px;align-self:center}
 @media(max-width:730px){.friends-grid,.friends-sections,.friends-trade-grid{grid-template-columns:1fr}.friends-panel,#friendsComparison{padding:15px}.friends-code{align-items:flex-start}}
+
+/* Galería de todas las cartas del amigo */
+.friend-view-tabs{display:flex;gap:9px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px;margin:20px 0}
+.friend-view-tabs button{border:1px solid var(--line);border-radius:11px;padding:11px 15px;background:var(--panel);color:var(--muted);font-size:13px;font-weight:800;cursor:pointer}
+.friend-view-tabs button:hover{border-color:var(--accent);color:var(--text)}
+.friend-view-tabs button.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,var(--panel));color:var(--text)}
+#friendAllPanel[hidden],#friendTradesPanel[hidden]{display:none!important}
+.friend-full-toolbar{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:14px;margin:0 0 15px}
+.friend-full-toolbar>label:first-child{display:grid;gap:7px;color:var(--muted);font-size:11px;font-weight:700;flex:1 1 200px;max-width:390px}
+.friend-full-toolbar select{height:42px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--text);padding:0 12px;max-width:100%;min-width:0}
+.friend-full-check{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:12px;color:var(--text)}
+.friend-full-check input{width:17px;height:17px;accent-color:var(--accent)}
+.friend-full-count{font-size:12px;color:var(--muted);margin:4px 0 14px}
+.friend-full-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(143px,1fr));gap:13px;align-items:stretch}
+.friend-full-card{position:relative;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:9px;border:1px solid var(--line);border-radius:13px;padding:9px;background:var(--panel);min-width:0}
+.friend-full-card .friend-trade-thumb{width:100%;height:auto;aspect-ratio:0.72;max-height:none;flex:none;border-radius:8px}
+.friend-full-card .friend-trade-meta{display:grid;flex:none;gap:4px;min-height:54px;padding:0 3px 4px}
+.friend-full-card .friend-trade-name{font-size:12px;line-height:1.35;min-height:30px}
+.friend-full-card .friend-trade-meta small{font-size:10px}
+.friend-full-card .friend-full-set{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.friend-full-card .friend-trade-quantity{position:absolute;top:15px;right:15px;z-index:2;margin:0;padding:5px 7px;border-radius:8px;background:rgba(12,14,22,.91);color:#d9d0ff;font-size:12px}
+.friend-full-more{display:block;margin:23px auto 4px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);padding:11px 17px;font-weight:750;font-size:12px;cursor:pointer}
+.friend-full-more[hidden]{display:none!important}
+.friend-trades-intro{font-size:12px;color:var(--muted);margin:0 0 14px}
+@media(max-width:650px){
+ .friend-view-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+ .friend-view-tabs button{padding:10px 6px;font-size:11px}
+ .friend-full-grid{grid-template-columns:repeat(auto-fill,minmax(113px,1fr));gap:9px}
+ .friend-full-card{padding:7px}
+ .friend-full-card .friend-trade-quantity{top:11px;right:11px}
+ .friend-full-toolbar>label:first-child{max-width:none}
+}
