@@ -389,7 +389,7 @@
      <button id="friendOffersMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
    </section>
    <section id="friendTradesPanel" hidden>
-     <p class="friend-trades-intro">Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1. Pulsa una carta para ver su ficha completa.</p>
+     <p class="friend-trades-intro">Posibles intercambios basados en repetidas, aunque no estén publicadas. Para ver ofertas confirmadas, abre «Disponibles». Pulsa una carta para ver su ficha completa.</p>
      <div class="friends-trade-grid">
        ${tradeGroup('Repetidas que te faltan',theyHave,'Tu amigo no tiene repetidas que te falten.')}
        ${tradeGroup('Tus repetidas que le faltan',iHave,'No tienes repetidas que le falten a tu amigo.')}
