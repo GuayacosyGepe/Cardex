@@ -62,7 +62,7 @@
   function isPremiumHit(card){
     const rarity=String(card?.rarity||'').trim().toLowerCase();
     if(!rarity||/^(?:none|common|uncommon|rare|rare holo|holo rare|double rare|promo|promotional|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar)$/i.test(rarity))return false;
-    return /(?:illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|shiny rare|rare shiny|rare ultra|rare secret|rare rainbow|gold rare|amazing rare|radiant rare|rare radiant|ace spec rare|rare ace|special art|alternate art|full art|trainer gallery|galarian gallery|prism star|rare prism|rare prime|rare break|rare holo lv\\.x|rare holo legend|rare holo star|rare holo gold star|rare holo break|rare holo prime)/i.test(rarity);
+    return /(?:illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|shiny rare|rare shiny|rare ultra|rare secret|rare rainbow|gold rare|amazing rare|radiant rare|rare radiant|ace spec rare|rare ace|special art|alternate art|full art|trainer gallery|galarian gallery|prism star|rare prism|rare prime|rare break|rare holo lv\.x|rare holo legend|rare holo star|rare holo gold star|rare holo break|rare holo prime)/i.test(rarity);
   }
   function setHitsMode(mode){
     hitsMode=hitsMode===mode?'all':mode;
