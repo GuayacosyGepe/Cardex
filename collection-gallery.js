@@ -8,7 +8,7 @@
   const cache=new Map();
   const failed=new Set();
   const prices=new Map();
-  let priceLoading=false, priceDone=0, priceTotal=0, hitsOnly=false;
+  let priceLoading=false, priceDone=0, priceTotal=0, hitsMode='all';
   let version='', visible=PAGE, view='cards', loading=false, detailLoading=false, sequence=0, loaded=0, pending=0;
   let entries=[], matched=[];
   try { Object.entries(JSON.parse(localStorage.getItem(KEY)||'{}')).forEach(([k,v])=>{if(v?.name)cache.set(k,v)}); } catch {}
@@ -57,12 +57,30 @@
     if(/(?:^|\b)(?:double rare|illustration rare|special illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|amazing rare|radiant rare|shiny rare|ace spec rare|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar|rare holo lv\.x|rare prime|rare break|rare prism|rare shiny)(?:$|\b)/i.test(rarity))return true;
     return /(?:^|\s)(?:ex|GX|V|VMAX|VSTAR|BREAK|TURBO|LV\.X)(?=$|\s|[-/])/i.test(name);
   }
+  // A diferencia del filtro EX/ex, aquí la rareza debe ser especial: el nombre
+  // Charizard ex no basta para contar como HIT premium si es una Double Rare.
+  function isPremiumHit(card){
+    const rarity=String(card?.rarity||'').trim().toLowerCase();
+    if(!rarity||/^(?:none|common|uncommon|rare|rare holo|holo rare|double rare|promo|promotional|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar)$/i.test(rarity))return false;
+    return /(?:illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|shiny rare|rare shiny|rare ultra|rare secret|rare rainbow|gold rare|amazing rare|radiant rare|rare radiant|ace spec rare|rare ace|special art|alternate art|full art|trainer gallery|galarian gallery|prism star|rare prism|rare prime|rare break|rare holo lv\.x|rare holo legend|rare holo star|rare holo gold star|rare holo break|rare holo prime)/i.test(rarity);
+  }
+  function setHitsMode(mode){
+    hitsMode=hitsMode===mode?'all':mode;
+    [['galleryHitsOnly','ex'],['galleryPremiumOnly','premium']].forEach(([id,value])=>{
+      const btn=$('#'+id);
+      if(!btn)return;
+      const active=hitsMode===value;
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-pressed',String(active));
+    });
+    visible=PAGE;render();maybeDetail();
+  }
   function priced(value){
     const data=prices.get(value);
     return data&&data.price!==null&&Number.isFinite(data.price)&&data.price>0?data.price:null;
   }
   function hasActiveFilters(){
-    return Boolean(hitsOnly||$('#gallerySearch').value.trim()||$('#gallerySet').value||
+    return Boolean(hitsMode!=='all'||$('#gallerySearch').value.trim()||$('#gallerySet').value||
       $('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value||$('#galleryDupOnly').checked);
   }
   function renderValue(items){
@@ -182,7 +200,8 @@
       <div class="gallery-toolbar"><input id="gallerySearch" type="search" placeholder="Buscar entre mis cartas…" aria-label="Buscar entre mis cartas">
         <button class="gallery-view active" data-gallery-view="cards" type="button">▦ Cartas</button>
         <button class="gallery-view" data-gallery-view="sets" type="button">▤ Expansiones</button>
-        <button id="galleryHitsOnly" type="button" aria-pressed="false">✦ EX/ex y superiores</button>
+        <button id="galleryHitsOnly" type="button" aria-pressed="false" title="Incluye EX/ex, GX, V y rarezas superiores">✦ EX/ex y superiores</button>
+        <button id="galleryPremiumOnly" type="button" aria-pressed="false" title="Solo rarezas especiales (ilustraciones raras, full arts, secretas, etc.). Excluye las EX/ex normales y Double Rare.">✧ HITs especiales</button>
         <button id="galleryToggle" type="button" aria-expanded="false">☷ Filtros</button></div>
       <div id="galleryFilters" class="gallery-filters" hidden>
         <label>Expansión<select id="gallerySet"><option value="">Todas</option></select></label>
@@ -198,12 +217,8 @@
       <div class="gallery-pager"><span id="galleryTotal"></span><button id="galleryMore" type="button" hidden>Mostrar más</button></div>
     </div>`);
     $('#gallerySearch').addEventListener('input',()=>{visible=PAGE;render()});
-    $('#galleryHitsOnly').addEventListener('click',()=>{
-      hitsOnly=!hitsOnly;
-      $('#galleryHitsOnly').classList.toggle('active',hitsOnly);
-      $('#galleryHitsOnly').setAttribute('aria-pressed',String(hitsOnly));
-      visible=PAGE;render();maybeDetail();
-    });
+    $('#galleryHitsOnly').addEventListener('click',()=>setHitsMode('ex'));
+    $('#galleryPremiumOnly').addEventListener('click',()=>setHitsMode('premium'));
     $('#galleryReprice').addEventListener('click',()=>{
       if(priceLoading)return;
       prices.clear();
@@ -217,7 +232,10 @@
     $('#galleryClear').addEventListener('click',()=>{
       ['gallerySet','galleryRarity','galleryType','galleryCategory'].forEach(id=>$('#'+id).value='');
       $('#gallerySort').value='set';$('#galleryDupOnly').checked=false;$('#gallerySearch').value='';
-      hitsOnly=false;$('#galleryHitsOnly').classList.remove('active');$('#galleryHitsOnly').setAttribute('aria-pressed','false');
+      hitsMode='all';
+      ['galleryHitsOnly','galleryPremiumOnly'].forEach(id=>{
+        $('#'+id).classList.remove('active');$('#'+id).setAttribute('aria-pressed','false');
+      });
       visible=PAGE;render();
     });
     $('#galleryMore').addEventListener('click',()=>{visible+=PAGE;render();hydrate()});
@@ -231,6 +249,7 @@
     $('#galleryFilters').hidden=view==='sets'||$('#galleryToggle').getAttribute('aria-expanded')!=='true';
     $('#gallerySearch').disabled=view==='sets';$('#galleryToggle').disabled=view==='sets';
     $('#galleryHitsOnly').disabled=view==='sets';
+    $('#galleryPremiumOnly').disabled=view==='sets';
     if(view==='cards')refresh();else render();
   }
   function isCurrent(){return $('#mycollection')?.classList.contains('active-view')&&!$('#collectionTabSets').hidden&&view==='cards'}
@@ -249,7 +268,7 @@
       select.value=vals.has(previous)?previous:'';
     });
   }
-  function advanced(){return Boolean(hitsOnly||$('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value)}
+  function advanced(){return Boolean(hitsMode!=='all'||$('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value)}
   function render(){
     if(!$('#ownedGallery'))return;
     $('#galleryUnique').textContent=entries.length;
@@ -268,7 +287,8 @@
       if(rare&&card.rarity!==rare)return false;
       if(type&&!(card.types||[]).includes(type))return false;
       if(cat&&card.category!==cat)return false;
-      if(hitsOnly&&!isHit(card))return false;
+      if(hitsMode==='ex'&&!isHit(card))return false;
+      if(hitsMode==='premium'&&!isPremiumHit(card))return false;
       return true;
     });
     const sort=$('#gallerySort').value;
