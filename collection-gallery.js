@@ -81,7 +81,7 @@
       entries.some(item=>!cache.get(item.id)?.full);
     amount.textContent=classificationPending&&(priceLoading||detailLoading)?'Clasificando…':
       items.length===0?formatEur.format(0):
-      valued?formatEur.format(total):pendingCount||failedCount?'Calculando…':'Sin precios';
+      valued?formatEur.format(total):pendingCount&&priceLoading?'Calculando…':'Sin valoración';
     const coverage=$('#galleryValueCoverage');
     coverage.textContent=valued+' de '+items.length+' cartas con precio'
       +(without?' · '+without+' sin precio':'')
