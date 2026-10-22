@@ -96,6 +96,10 @@
   }
   async function readFreshPrice(cardId){
     try{
+      // Una cotización caducada debe volver a la API, no al Map de esta misma sesión.
+      const previous=prices.get(cardId);
+      if(previous && Date.now()-previous.checkedAt>PRICE_TTL && typeof cardDetailCache!=='undefined')
+        cardDetailCache.delete(cardId);
       const full=await getCardDetail(cardId);
       addMeta(full,true);
       let price=readCardPrice(full);
@@ -127,7 +131,10 @@
         const id=todo[index++];
         await readFreshPrice(id);
         priceDone++;
-        if(priceDone%5===0||priceDone===todo.length)renderValue(view==='cards'?filteredPriceEntries:entries);
+        if(priceDone%5===0||priceDone===todo.length){
+          if(view==='cards'&&advanced())render(); // Mostrar nuevos HITs al clasificarlos.
+          else renderValue(view==='cards'?filteredPriceEntries:entries);
+        }
       }
     });
     await Promise.all(workers);
@@ -199,8 +206,10 @@
     });
     $('#galleryReprice').addEventListener('click',()=>{
       if(priceLoading)return;
-      prices.clear();savePricesSoon();render();
-      updatePrices();
+      prices.clear();
+      // El botón fuerza una consulta real; no vuelve a usar fichas antiguas en memoria.
+      if(typeof cardDetailCache!=='undefined')entries.forEach(item=>cardDetailCache.delete(item.id));
+      savePricesSoon();render();updatePrices();
     });
     $('#galleryToggle').addEventListener('click',()=>{const e=$('#galleryFilters');e.hidden=!e.hidden;$('#galleryToggle').setAttribute('aria-expanded',String(!e.hidden))});
     document.querySelectorAll('[data-gallery-view]').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.galleryView)));
