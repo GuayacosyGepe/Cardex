@@ -90,12 +90,64 @@
  function tradeGroup(title,items,empty){
    const rows=items.slice(0,100);
    return `<section class="friend-trade-group"><h3>${esc(title)} <span>${items.length}</span></h3>
-   <div class="friend-trade-list">${rows.length?rows.map(x=>`<div class="friend-trade-entry"><span data-trade-id="${esc(x.id)}">${esc(x.id)}</span><strong>×${x.quantity}</strong></div>`).join(''): `<p class="friends-empty">${esc(empty)}</p>`}</div>
+   <div class="friend-trade-list">${rows.length?rows.map(x=>`<div class="friend-trade-entry" data-trade-id="${esc(x.id)}">
+     <span class="friend-trade-thumb" aria-hidden="true"><span class="friend-trade-placeholder">▤</span><img loading="lazy" decoding="async" alt="" hidden></span>
+     <span class="friend-trade-meta"><span class="friend-trade-name">Buscando carta…</span><small>${esc(x.id)}</small></span>
+     <strong class="friend-trade-quantity">×${x.quantity}</strong>
+   </div>`).join(''): `<p class="friends-empty">${esc(empty)}</p>`}</div>
    ${items.length>100?'<small>Se muestran las primeras 100 cartas.</small>':''}</section>`;
  }
+ function tradeImageCandidates(card){
+   const urls=[];
+   if(typeof imageUrl==='function'){
+     const image=imageUrl(card,'low');
+     if(image)urls.push(image);
+   }
+   if(card?.image){
+     urls.push(card.image+'/low.png',card.image+'/high.webp');
+   }
+   if(typeof classicEnglishImageUrl==='function'){
+     const english=classicEnglishImageUrl(card,'low');
+     if(english)urls.push(english);
+   }
+   return [...new Set(urls.filter(Boolean))];
+ }
+ function showTradeImage(row,card,selected){
+   const img=row.querySelector('.friend-trade-thumb img');
+   const placeholder=row.querySelector('.friend-trade-placeholder');
+   if(!img||!placeholder)return;
+   const urls=tradeImageCandidates(card);
+   if(!urls.length){
+     placeholder.textContent='Sin imagen';
+     placeholder.classList.add('is-missing');
+     return;
+   }
+   let index=0;
+   img.addEventListener('load',()=>{
+     if(state.selected!==selected||!row.isConnected)return;
+     img.hidden=false;
+     placeholder.hidden=true;
+   });
+   img.addEventListener('error',()=>{
+     if(state.selected!==selected||!row.isConnected)return;
+     index++;
+     if(index<urls.length){img.src=urls[index];return;}
+     img.hidden=true;
+     placeholder.hidden=false;
+     placeholder.textContent='Sin imagen';
+     placeholder.classList.add('is-missing');
+   });
+   img.src=urls[0];
+ }
  async function names(){
-   const nodes=[...$('#friendsComparison').querySelectorAll('[data-trade-id]')];
-   const unique=[...new Set(nodes.map(n=>n.dataset.tradeId))];
+   const rows=[...$('#friendsComparison').querySelectorAll('.friend-trade-entry[data-trade-id]')];
+   const byId=new Map();
+   for(const row of rows){
+     const id=row.dataset.tradeId;
+     if(!byId.has(id))byId.set(id,[]);
+     byId.get(id).push(row);
+   }
+   const unique=[...byId.keys()];
    const selected=state.selected;
    let index=0;
    await Promise.all(Array.from({length:Math.min(4,unique.length)},async()=>{
@@ -104,10 +156,19 @@
        try{
          const card=await getCardDetail(id);
          if(state.selected!==selected)return;
-         $('#friendsComparison').querySelectorAll('[data-trade-id]').forEach(node=>{
-           if(node.dataset.tradeId===id)node.textContent=(card?.name||id)+' · '+id;
-         });
-       }catch{}
+         for(const row of byId.get(id)||[]){
+           if(!row.isConnected)continue;
+           row.querySelector('.friend-trade-name').textContent=card?.name||id;
+           showTradeImage(row,card||{id},selected);
+         }
+       }catch{
+         for(const row of byId.get(id)||[]){
+           if(!row.isConnected)continue;
+           row.querySelector('.friend-trade-name').textContent=id;
+           row.querySelector('.friend-trade-placeholder').textContent='Sin imagen';
+           row.querySelector('.friend-trade-placeholder').classList.add('is-missing');
+         }
+       }
      }
    }));
  }
