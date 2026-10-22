@@ -2,12 +2,20 @@
 (() => {
   'use strict';
   const PAGE=60, KEY='carddex_gallery_meta_v2';
+  const PRICE_KEY='carddex_gallery_prices_v1', PRICE_TTL=24*60*60*1000, ERROR_TTL=15*60*1000;
+  const formatEur=new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'});
   const $=s=>document.querySelector(s);
   const cache=new Map();
   const failed=new Set();
+  const prices=new Map();
+  let priceLoading=false, priceDone=0, priceTotal=0, hitsOnly=false;
   let version='', visible=PAGE, view='cards', loading=false, detailLoading=false, sequence=0, loaded=0, pending=0;
   let entries=[], matched=[];
   try { Object.entries(JSON.parse(localStorage.getItem(KEY)||'{}')).forEach(([k,v])=>{if(v?.name)cache.set(k,v)}); } catch {}
+  try { Object.entries(JSON.parse(localStorage.getItem(PRICE_KEY)||'{}')).forEach(([k,v])=>{
+    if(v&&typeof v.checkedAt==='number'&&(v.price===null||typeof v.price==='number'))prices.set(k,v);
+  }); } catch {}
+  let priceSaveTimer=0;
   const clean=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   const html=v=>escapeHtml(String(v??''));
   const setOf=id=>String(id).split('-').slice(0,-1).join('-');
@@ -16,6 +24,128 @@
   function saveCache(){
     try{localStorage.setItem(KEY,JSON.stringify(Object.fromEntries([...cache.entries()].slice(-1600))))}catch{}
   }
+  function savePricesSoon(){
+    clearTimeout(priceSaveTimer);
+    priceSaveTimer=setTimeout(()=>{
+      try { localStorage.setItem(PRICE_KEY,JSON.stringify(Object.fromEntries([...prices].slice(-3500)))); }
+      catch(error){console.warn('CardDex precios: caché no disponible',error);}
+    },700);
+  }
+  function positivePrice(value){return typeof value==='number'&&Number.isFinite(value)&&value>0?value:null;}
+  function marketPrice(market){
+    if(!market||market.unit&&market.unit!=='EUR')return null;
+    // La colección no distingue acabado normal, holo o reverso. Priorizamos el precio base.
+    for(const suffix of ['', '-holo']){
+      for(const key of ['trend','avg','avg7','avg30','low']){
+        const value=positivePrice(market[key+suffix]);
+        if(value!==null)return value;
+      }
+    }
+    return null;
+  }
+  function readCardPrice(data){
+    const main=marketPrice(data?.pricing?.cardmarket);
+    if(main!==null)return main;
+    // En algunos sets Cardmarket solo ofrece precio de variantes concretas.
+    const variants=Array.isArray(data?.variants_detailed)?data.variants_detailed:[];
+    const defaultVariant=variants.find(v=>v?.variantId==='generated' || v?.type==='normal')||variants[0];
+    return marketPrice(defaultVariant?.pricing?.cardmarket);
+  }
+  function isHit(card){
+    const rarity=String(card?.rarity||'').toLowerCase();
+    const name=String(card?.name||'');
+    if(/(?:^|\b)(?:double rare|illustration rare|special illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|amazing rare|radiant rare|shiny rare|ace spec rare|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar|rare holo lv\.x|rare prime|rare break|rare prism|rare shiny)(?:$|\b)/i.test(rarity))return true;
+    return /(?:^|\s)(?:ex|GX|V|VMAX|VSTAR|BREAK|TURBO|LV\.X)(?=$|\s|[-/])/i.test(name);
+  }
+  function priced(value){
+    const data=prices.get(value);
+    return data&&data.price!==null&&Number.isFinite(data.price)&&data.price>0?data.price:null;
+  }
+  function hasActiveFilters(){
+    return Boolean(hitsOnly||$('#gallerySearch').value.trim()||$('#gallerySet').value||
+      $('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value||$('#galleryDupOnly').checked);
+  }
+  function renderValue(items){
+    const title=$('#galleryValueTitle'),amount=$('#galleryValueAmount');
+    if(!title||!amount)return;
+    title.textContent=hasActiveFilters()&&view==='cards'?'Valor estimado de las cartas filtradas':'Valor total estimado';
+    let total=0,valued=0,without=0,pendingCount=0,failedCount=0;
+    for(const {id,quantity} of items){
+      const found=prices.get(id),price=priced(id);
+      if(price!==null){total+=price*quantity;valued++;}
+      else if(!found || Date.now()-found.checkedAt>(found.error?ERROR_TTL:PRICE_TTL))pendingCount++;
+      else if(found.error)failedCount++;
+      else without++;
+    }
+    const classificationPending=view==='cards' && advanced() &&
+      entries.some(item=>!cache.get(item.id)?.full);
+    amount.textContent=classificationPending&&(priceLoading||detailLoading)?'Clasificando…':
+      items.length===0?formatEur.format(0):
+      valued?formatEur.format(total):pendingCount&&priceLoading?'Calculando…':'Sin valoración';
+    const coverage=$('#galleryValueCoverage');
+    coverage.textContent=valued+' de '+items.length+' cartas con precio'
+      +(without?' · '+without+' sin precio':'')
+      +(pendingCount?' · '+pendingCount+' pendientes':'')
+      +(failedCount?' · '+failedCount+' con error':'');
+    const state=$('#galleryValueProgress');
+    state.textContent=classificationPending&&(priceLoading||detailLoading)?'Identificando tipos y rarezas…':
+      priceLoading?'Consultando Cardmarket: '+priceDone+' / '+priceTotal:
+      pendingCount?'Valoración todavía incompleta':'Precios orientativos de Cardmarket';
+    const refreshButton=$('#galleryReprice');
+    if(refreshButton)refreshButton.disabled=priceLoading;
+  }
+  async function readFreshPrice(cardId){
+    try{
+      // Una cotización caducada debe volver a la API, no al Map de esta misma sesión.
+      const previous=prices.get(cardId);
+      if(previous && Date.now()-previous.checkedAt>PRICE_TTL && typeof cardDetailCache!=='undefined')
+        cardDetailCache.delete(cardId);
+      const full=await getCardDetail(cardId);
+      addMeta(full,true);
+      let price=readCardPrice(full);
+      if(price===null && typeof enrichCardmarketPricing==='function'){
+        const en=await enrichCardmarketPricing(cardId,full);
+        price=readCardPrice(en);
+      }
+      prices.set(cardId,{price,checkedAt:Date.now(),error:false});
+    }catch(error){
+      // No confundir errores de red o API con una carta cuyo precio no existe.
+      prices.set(cardId,{price:null,checkedAt:Date.now(),error:true});
+      console.warn('CardDex precio no disponible',cardId,error?.message||error);
+    }
+    savePricesSoon();
+  }
+  async function updatePrices(){
+    if(priceLoading||!isCurrent()||!entries.length)return;
+    const generation=sequence,now=Date.now();
+    const prioritized=[...new Set([...filteredPriceEntries.map(item=>item.id),...entries.map(item=>item.id)])];
+    const todo=prioritized.filter(id=>{
+      const saved=prices.get(id);
+      return !saved||now-saved.checkedAt>(saved.error?ERROR_TTL:PRICE_TTL);
+    });
+    if(!todo.length){renderValue(view==='cards'?filteredPriceEntries:entries);return;}
+    priceLoading=true;priceDone=0;priceTotal=todo.length;
+    let index=0;
+    const workers=Array.from({length:Math.min(3,todo.length)},async()=>{
+      while(index<todo.length && generation===sequence){
+        const id=todo[index++];
+        await readFreshPrice(id);
+        priceDone++;
+        if(priceDone%5===0||priceDone===todo.length){
+          if(view==='cards'&&advanced())render(); // Mostrar nuevos HITs al clasificarlos.
+          else renderValue(view==='cards'?filteredPriceEntries:entries);
+        }
+      }
+    });
+    await Promise.all(workers);
+    if(generation===sequence){
+      priceLoading=false;
+      saveCache();
+      options();
+      render();
+    }
+  }
+  let filteredPriceEntries=[];
   function addMeta(data, full=false){
     if(!data?.id||!data?.name)return;
     const before=cache.get(data.id)||{};
@@ -39,9 +169,20 @@
     if(!parent||$('#ownedGallery'))return;
     parent.insertAdjacentHTML('afterbegin',`<div id="ownedGallery">
       <div class="gallery-stats"><div><small>Cartas distintas</small><strong id="galleryUnique">0</strong></div><div><small>Ejemplares</small><strong id="galleryCopies">0</strong></div><div><small>Con repetidas</small><strong id="galleryDups">0</strong></div></div>
+      <section class="gallery-valuation" aria-label="Valoración de la colección">
+        <div class="gallery-valuation-main">
+          <div><small id="galleryValueTitle">Valor total estimado</small><strong id="galleryValueAmount">Calculando…</strong></div>
+          <span class="gallery-valuation-icon" aria-hidden="true">€</span>
+        </div>
+        <div id="galleryValueCoverage" class="gallery-value-coverage">Preparando valoración…</div>
+        <div class="gallery-value-bottom"><small id="galleryValueProgress" aria-live="polite">Precios orientativos de Cardmarket</small>
+          <button id="galleryReprice" type="button" title="Volver a consultar los precios disponibles">Actualizar precios</button></div>
+        <small class="gallery-value-disclaimer">Importes aproximados: pueden variar por idioma, conservación y acabado (normal, holo o reverso). Las cartas sin precio no se suman.</small>
+      </section>
       <div class="gallery-toolbar"><input id="gallerySearch" type="search" placeholder="Buscar entre mis cartas…" aria-label="Buscar entre mis cartas">
         <button class="gallery-view active" data-gallery-view="cards" type="button">▦ Cartas</button>
         <button class="gallery-view" data-gallery-view="sets" type="button">▤ Expansiones</button>
+        <button id="galleryHitsOnly" type="button" aria-pressed="false">✦ EX/ex y superiores</button>
         <button id="galleryToggle" type="button" aria-expanded="false">☷ Filtros</button></div>
       <div id="galleryFilters" class="gallery-filters" hidden>
         <label>Expansión<select id="gallerySet"><option value="">Todas</option></select></label>
@@ -57,12 +198,27 @@
       <div class="gallery-pager"><span id="galleryTotal"></span><button id="galleryMore" type="button" hidden>Mostrar más</button></div>
     </div>`);
     $('#gallerySearch').addEventListener('input',()=>{visible=PAGE;render()});
+    $('#galleryHitsOnly').addEventListener('click',()=>{
+      hitsOnly=!hitsOnly;
+      $('#galleryHitsOnly').classList.toggle('active',hitsOnly);
+      $('#galleryHitsOnly').setAttribute('aria-pressed',String(hitsOnly));
+      visible=PAGE;render();maybeDetail();
+    });
+    $('#galleryReprice').addEventListener('click',()=>{
+      if(priceLoading)return;
+      prices.clear();
+      // El botón fuerza una consulta real; no vuelve a usar fichas antiguas en memoria.
+      if(typeof cardDetailCache!=='undefined')entries.forEach(item=>cardDetailCache.delete(item.id));
+      savePricesSoon();render();updatePrices();
+    });
     $('#galleryToggle').addEventListener('click',()=>{const e=$('#galleryFilters');e.hidden=!e.hidden;$('#galleryToggle').setAttribute('aria-expanded',String(!e.hidden))});
     document.querySelectorAll('[data-gallery-view]').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.galleryView)));
     ['gallerySet','galleryRarity','galleryType','galleryCategory','gallerySort','galleryDupOnly'].forEach(id=>$('#'+id).addEventListener('change',()=>{visible=PAGE;render();maybeDetail()}));
     $('#galleryClear').addEventListener('click',()=>{
       ['gallerySet','galleryRarity','galleryType','galleryCategory'].forEach(id=>$('#'+id).value='');
-      $('#gallerySort').value='set';$('#galleryDupOnly').checked=false;$('#gallerySearch').value='';visible=PAGE;render();
+      $('#gallerySort').value='set';$('#galleryDupOnly').checked=false;$('#gallerySearch').value='';
+      hitsOnly=false;$('#galleryHitsOnly').classList.remove('active');$('#galleryHitsOnly').setAttribute('aria-pressed','false');
+      visible=PAGE;render();
     });
     $('#galleryMore').addEventListener('click',()=>{visible+=PAGE;render();hydrate()});
     switchView('cards');
@@ -74,7 +230,8 @@
     $('.gallery-pager').hidden=view==='sets';$('#myCollectionSets').hidden=view!=='sets';
     $('#galleryFilters').hidden=view==='sets'||$('#galleryToggle').getAttribute('aria-expanded')!=='true';
     $('#gallerySearch').disabled=view==='sets';$('#galleryToggle').disabled=view==='sets';
-    if(view==='cards')refresh();
+    $('#galleryHitsOnly').disabled=view==='sets';
+    if(view==='cards')refresh();else render();
   }
   function isCurrent(){return $('#mycollection')?.classList.contains('active-view')&&!$('#collectionTabSets').hidden&&view==='cards'}
   function options(){
@@ -92,13 +249,13 @@
       select.value=vals.has(previous)?previous:'';
     });
   }
-  function advanced(){return Boolean($('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value)}
+  function advanced(){return Boolean(hitsOnly||$('#galleryRarity').value||$('#galleryType').value||$('#galleryCategory').value)}
   function render(){
     if(!$('#ownedGallery'))return;
     $('#galleryUnique').textContent=entries.length;
     $('#galleryCopies').textContent=entries.reduce((sum,item)=>sum+item.quantity,0);
     $('#galleryDups').textContent=entries.filter(x=>x.quantity>1).length;
-    if(view!=='cards')return;
+    if(view!=='cards'){filteredPriceEntries=entries;renderValue(entries);return;}
     const search=clean($('#gallerySearch').value);
     const set=$('#gallerySet').value,rare=$('#galleryRarity').value,type=$('#galleryType').value,cat=$('#galleryCategory').value;
     const dup=$('#galleryDupOnly').checked;
@@ -111,6 +268,7 @@
       if(rare&&card.rarity!==rare)return false;
       if(type&&!(card.types||[]).includes(type))return false;
       if(cat&&card.category!==cat)return false;
+      if(hitsOnly&&!isHit(card))return false;
       return true;
     });
     const sort=$('#gallerySort').value;
@@ -120,7 +278,9 @@
       if(sort==='number')return Number(cache.get(a.id)?.localId||9999)-Number(cache.get(b.id)?.localId||9999)||a.id.localeCompare(b.id);
       return (order.get(setOf(a.id))??99999)-(order.get(setOf(b.id))??99999)||a.id.localeCompare(b.id);
     });
+    filteredPriceEntries=results;
     matched=results.map(({id})=>cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''});
+    renderValue(results);
     $('#galleryCards').innerHTML=results.slice(0,visible).map(({id,quantity})=>{
       const card=cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''};
       return cardTile(card).replace('class="tcg-card ',`class="tcg-card ${quantity>1?'gallery-duplicate ':''}`);
@@ -164,7 +324,7 @@
     }
   }
   async function maybeDetail(){
-    if(!advanced()||detailLoading||!isCurrent())return;
+    if(!advanced()||detailLoading||priceLoading||!isCurrent())return;
     const list=entries.filter(x=>!cache.get(x.id)?.full).map(x=>x.id);
     if(!list.length)return;
     detailLoading=true;const gen=sequence;let index=0;
@@ -178,9 +338,9 @@
   function refresh(){
     if(!$('#ownedGallery'))return;
     seed();const next=owned(),signature=next.map(x=>x.id).sort().join('|');
-    if(signature!==version){version=signature;sequence++;loading=false;detailLoading=false;visible=PAGE;}
+    if(signature!==version){version=signature;sequence++;loading=false;detailLoading=false;priceLoading=false;visible=PAGE;}
     entries=next;options();render();
-    hydrate();maybeDetail();
+    hydrate();updatePrices();maybeDetail();
   }
   function init(){
     ui();refresh();
