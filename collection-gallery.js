@@ -8,6 +8,9 @@
   const cache=new Map();
   const failed=new Set();
   const prices=new Map();
+  const cardRequests=new Map();
+  const detailFailures=new Set();
+  let classifiedCount=0, classifiedTotal=0;
   let priceLoading=false, priceDone=0, priceTotal=0, hitsMode='all';
   let version='', visible=PAGE, view='cards', loading=false, detailLoading=false, sequence=0, loaded=0, pending=0;
   let entries=[], matched=[];
@@ -59,13 +62,36 @@
   }
   // A diferencia del filtro EX/ex, aquí la rareza debe ser especial: el nombre
   // Charizard ex no basta para contar como HIT premium si es una Double Rare.
+  function needsClassification(card){
+    return !card?.full||(!card?.rarity&&!card?.rarityChecked);
+  }
   function isPremiumHit(card){
-    const rarity=String(card?.rarity||'').trim().toLowerCase();
-    if(!rarity||/^(?:none|common|uncommon|rare|rare holo|holo rare|double rare|promo|promotional|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar)$/i.test(rarity))return false;
-    return /(?:illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|shiny rare|rare shiny|rare ultra|rare secret|rare rainbow|gold rare|amazing rare|radiant rare|rare radiant|ace spec rare|rare ace|special art|alternate art|full art|trainer gallery|galarian gallery|prism star|rare prism|rare prime|rare break|rare holo lv\.x|rare holo legend|rare holo star|rare holo gold star|rare holo break|rare holo prime)/i.test(rarity);
+    // TCGdex conserva rarezas históricas y etiquetas en varios idiomas.
+    // Las ex/GX/V convencionales, Double Rare y holográficas normales NO cuentan.
+    const rarity=clean(card?.rarity);
+    if(!rarity)return false;
+    if(/^(?:none|common|uncommon|rare|rare holo|holo rare|double rare|promo|promotional|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar|comun|poco comun|rara|rara holografica|doble rara|promocional)$/.test(rarity))return false;
+    return /(?:illustration rare|illustration.*rare|ilustracion.*rara|rara.*ilustracion|ultra rare|rare ultra|ultrarrara|ultra rara|hiper rara|hyper rare|rare hyper|secret rare|rare secret|rara secreta|arcoiris|rainbow rare|rare rainbow|shiny rare|rare shiny|rara brillante|gold rare|dorada|amazing rare|radiant rare|rare radiant|ace spec rare|rare ace|special art|alternate art|full art|trainer gallery|galarian gallery|prism star|rare prism|rare prime|rare break|rare holo lv\.x|rare holo legend|rare holo star|rare holo gold star|rare holo break|rare holo prime|rare holo shiny|rare shiny gx|rare shiny v|rare shiny vmax)/.test(rarity);
+  }
+  // Los precios y los filtros pueden pedir la misma carta simultáneamente.
+  // Compartimos la consulta y probamos EN si ES carece de clasificación.
+  function detailedCard(id){
+    if(cardRequests.has(id))return cardRequests.get(id);
+    const request=(async()=>{
+      const local=await getCardDetail(id);
+      if(local?.rarity)return local;
+      try{
+        const english=await fetchJson(apiFor('en')+'/cards/'+encodeURIComponent(id));
+        return {...local,rarity:english?.rarity||local?.rarity||'',category:local?.category||english?.category};
+      }catch{return local}
+    })();
+    cardRequests.set(id,request);
+    request.finally(()=>{if(cardRequests.get(id)===request)cardRequests.delete(id)}).catch(()=>{});
+    return request;
   }
   function setHitsMode(mode){
     hitsMode=hitsMode===mode?'all':mode;
+    if(hitsMode!=='all')detailFailures.clear(); // Permite reintentar la clasificación.
     [['galleryHitsOnly','ex'],['galleryPremiumOnly','premium']].forEach(([id,value])=>{
       const btn=$('#'+id);
       if(!btn)return;
@@ -96,8 +122,8 @@
       else without++;
     }
     const classificationPending=view==='cards' && advanced() &&
-      entries.some(item=>!cache.get(item.id)?.full);
-    amount.textContent=classificationPending&&(priceLoading||detailLoading)?'Clasificando…':
+      entries.some(item=>needsClassification(cache.get(item.id))&&!detailFailures.has(item.id));
+    amount.textContent=classificationPending?'Clasificando…':
       items.length===0?formatEur.format(0):
       valued?formatEur.format(total):pendingCount&&priceLoading?'Calculando…':'Sin valoración';
     const coverage=$('#galleryValueCoverage');
@@ -106,7 +132,7 @@
       +(pendingCount?' · '+pendingCount+' pendientes':'')
       +(failedCount?' · '+failedCount+' con error':'');
     const state=$('#galleryValueProgress');
-    state.textContent=classificationPending&&(priceLoading||detailLoading)?'Identificando tipos y rarezas…':
+    state.textContent=classificationPending?'Identificando rarezas: '+classifiedCount+' / '+classifiedTotal:
       priceLoading?'Consultando Cardmarket: '+priceDone+' / '+priceTotal:
       pendingCount?'Valoración todavía incompleta':'Precios orientativos de Cardmarket';
     const refreshButton=$('#galleryReprice');
@@ -118,7 +144,7 @@
       const previous=prices.get(cardId);
       if(previous && Date.now()-previous.checkedAt>PRICE_TTL && typeof cardDetailCache!=='undefined')
         cardDetailCache.delete(cardId);
-      const full=await getCardDetail(cardId);
+      const full=await detailedCard(cardId);
       addMeta(full,true);
       let price=readCardPrice(full);
       if(price===null && typeof enrichCardmarketPricing==='function'){
@@ -161,6 +187,7 @@
       saveCache();
       options();
       render();
+      maybeDetail(); // El filtro no depende de que siga la consulta de precios.
     }
   }
   let filteredPriceEntries=[];
@@ -171,7 +198,9 @@
       ...before,id:data.id,name:data.name,localId:data.localId||before.localId||data.id.split('-').at(-1),
       image:data.image||before.image||'',setId:setOf(data.id),
       category:data.category||before.category||'',rarity:data.rarity||before.rarity||'',
-      types:data.types||before.types||[], full:full||before.full||false
+      types:data.types||before.types||[],
+      full:full||before.full||false,
+      rarityChecked:full||Boolean(before.rarityChecked)
     });
   }
   function seed(){
@@ -301,13 +330,17 @@
     filteredPriceEntries=results;
     matched=results.map(({id})=>cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''});
     renderValue(results);
+    const classificationPending=advanced()&&entries.some(x=>needsClassification(cache.get(x.id))&&!detailFailures.has(x.id));
+    const classificationFailed=advanced()?entries.filter(x=>detailFailures.has(x.id)).length:0;
+    const rarityMissing=advanced()?entries.filter(x=>cache.get(x.id)?.rarityChecked&&!cache.get(x.id)?.rarity).length:0;
     $('#galleryCards').innerHTML=results.slice(0,visible).map(({id,quantity})=>{
       const card=cache.get(id)||{id,name:'Carta '+id,localId:id.split('-').at(-1),image:''};
       return cardTile(card).replace('class="tcg-card ',`class="tcg-card ${quantity>1?'gallery-duplicate ':''}`);
-    }).join('')||`<div class="empty">${entries.length?'No hay cartas que coincidan con los filtros.':'Todavía no tienes cartas registradas. Añádelas desde Expansiones o el Buscador.'}</div>`;
+    }).join('')||`<div class="empty">${!entries.length?'Todavía no tienes cartas registradas. Añádelas desde Expansiones o el Buscador.':classificationPending?'Comprobando la rareza de tus cartas…':classificationFailed?'No se encontraron coincidencias entre las cartas clasificadas. No se pudieron comprobar '+classificationFailed+' cartas.':rarityMissing?'No se encontraron HITs clasificados. TCGdex no indica la rareza de '+rarityMissing+' cartas.':'No hay cartas que coincidan con los filtros.'}</div>`;
     $('#galleryTotal').textContent=results.length+' cartas';
     $('#galleryMore').hidden=results.length<=visible;
-    $('#galleryStatus').textContent=loading?`Preparando imágenes: ${loaded} de ${pending}`:detailLoading?'Completando datos de rarezas y tipos…':'';
+    $('#galleryStatus').textContent=detailLoading?'Clasificando cartas: '+classifiedCount+' / '+classifiedTotal:
+      loading?`Preparando imágenes: ${loaded} de ${pending}`:classificationFailed?'Error consultando rarezas de '+classificationFailed+' cartas.':rarityMissing?'Sin rareza publicada para '+rarityMissing+' cartas.':'';
     $('#galleryCards').querySelectorAll('.tcg-card[data-card-id]').forEach(el=>el.addEventListener('click',()=>{
       currentSet=null;currentPokemon=null;currentSetCards=[];currentVisibleCards=matched;
       openCard(el.dataset.cardId);
@@ -344,13 +377,21 @@
     }
   }
   async function maybeDetail(){
-    if(!advanced()||detailLoading||priceLoading||!isCurrent())return;
-    const list=entries.filter(x=>!cache.get(x.id)?.full).map(x=>x.id);
-    if(!list.length)return;
+    if(!advanced()||detailLoading||!isCurrent())return;
+    const list=entries.filter(x=>needsClassification(cache.get(x.id))&&!detailFailures.has(x.id)).map(x=>x.id);
+    if(!list.length){render();return}
     detailLoading=true;const gen=sequence;let index=0;
-    await Promise.all(Array.from({length:Math.min(3,list.length)},async()=>{
-      while(index<list.length&&gen===sequence){const id=list[index++];try{addMeta(await getCardDetail(id),true)}catch{}
-        if(index%12===0&&gen===sequence){options();render();}
+    classifiedTotal=list.length;classifiedCount=0;
+    render(); // No enseñar un 0 de resultados mientras falta información.
+    await Promise.all(Array.from({length:Math.min(4,list.length)},async()=>{
+      while(index<list.length&&gen===sequence){
+        const id=list[index++];
+        try{addMeta(await detailedCard(id),true)}catch(error){
+          detailFailures.add(id);
+          console.warn('CardDex no pudo clasificar',id,error?.message||error);
+        }
+        classifiedCount++;
+        if(classifiedCount%5===0&&gen===sequence){options();render();}
       }
     }));
     if(gen===sequence){detailLoading=false;saveCache();options();render();}
@@ -358,7 +399,7 @@
   function refresh(){
     if(!$('#ownedGallery'))return;
     seed();const next=owned(),signature=next.map(x=>x.id).sort().join('|');
-    if(signature!==version){version=signature;sequence++;loading=false;detailLoading=false;priceLoading=false;visible=PAGE;}
+    if(signature!==version){version=signature;sequence++;loading=false;detailLoading=false;priceLoading=false;visible=PAGE;detailFailures.clear();}
     entries=next;options();render();
     hydrate();updatePrices();maybeDetail();
   }
