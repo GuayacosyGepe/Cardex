@@ -40,8 +40,10 @@
    state.profiles=new Map();
    if(ids.length){
      const p=await supabaseClient.from('profiles').select('user_id,display_name,avatar_pokemon_id,avatar_style').in('user_id',ids);
+     if(!session()||remoteUser.id!==userId)return;
      if(!p.error)(p.data||[]).forEach(x=>state.profiles.set(x.user_id,x));
    }
+   if(!session()||remoteUser.id!==userId)return;
    draw();
    if(state.selected&&!state.friendships.some(f=>f.id===state.selected&&f.status==='accepted')){
      state.selected=null;$('#friendsComparison').hidden=true;
@@ -94,12 +96,14 @@
  async function names(){
    const nodes=[...$('#friendsComparison').querySelectorAll('[data-trade-id]')];
    const unique=[...new Set(nodes.map(n=>n.dataset.tradeId))];
+   const selected=state.selected;
    let index=0;
    await Promise.all(Array.from({length:Math.min(4,unique.length)},async()=>{
-     while(index<unique.length&&state.selected){
+     while(index<unique.length&&state.selected===selected){
        const id=unique[index++];
        try{
          const card=await getCardDetail(id);
+         if(state.selected!==selected)return;
          $('#friendsComparison').querySelectorAll('[data-trade-id]').forEach(node=>{
            if(node.dataset.tradeId===id)node.textContent=(card?.name||id)+' · '+id;
          });
