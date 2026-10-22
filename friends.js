@@ -4,8 +4,8 @@
  const $=s=>document.querySelector(s);
  const esc=s=>escapeHtml(String(s??''));
  const PAGE_SIZE=60;
- const state={friendships:[],profiles:new Map(),selected:null,friendCards:[],busy:false,loading:false,
-   friendView:'all',friendPage:PAGE_SIZE};
+ const state={friendships:[],profiles:new Map(),selected:null,friendCards:[],friendOffers:[],busy:false,loading:false,
+   friendView:'all',friendPage:PAGE_SIZE,offerPage:PAGE_SIZE,offersError:''};
  const friendCardDetails=new Map();
  function active(){return $('#friends')?.classList.contains('active-view')}
  function session(){return typeof remoteUser!=='undefined'&&remoteUser?.id&&typeof supabaseClient!=='undefined'&&supabaseClient}
@@ -54,7 +54,7 @@
    if(!session()||remoteUser.id!==userId)return;
    draw();
    if(state.selected&&!state.friendships.some(f=>f.id===state.selected&&f.status==='accepted')){
-     state.selected=null;state.friendCards=[];$('#friendsComparison').hidden=true;
+     state.selected=null;state.friendCards=[];state.friendOffers=[];$('#friendsComparison').hidden=true;
    }
  }
  async function initCode(){
@@ -223,6 +223,7 @@
    const grid=$('#friendAllCards');
    if(!grid||!state.selected)return;
    const cards=friendCollectionFilter();
+   const available=new Map(state.friendOffers.map(c=>[c.id,c.quantity]));
    const showing=cards.slice(0,state.friendPage);
    $('#friendAllCount').textContent=`${cards.length} de ${state.friendCards.length} cartas diferentes`;
    grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}" role="button" tabindex="0" aria-label="Ver ficha de la carta ${esc(item.id)}">
@@ -234,6 +235,7 @@
        <strong class="friend-trade-name">Cargando carta…</strong>
        <small>${esc(item.id)}</small>
        <small class="friend-full-set">${esc(friendSetName(friendSetId(item.id)))}</small>
+       ${available.has(item.id)?`<small class="friend-card-available">Disponible para intercambio ×${available.get(item.id)}</small>`:''}
      </span>
      <strong class="friend-trade-quantity">×${item.quantity}</strong>
    </article>`).join('')||`<p class="friends-empty">${state.friendCards.length?'No hay cartas que coincidan con este filtro.':'Tu amigo todavía no tiene cartas registradas.'}</p>`;
@@ -242,19 +244,45 @@
    more.textContent=`Mostrar más (${cards.length-showing.length})`;
    if(state.friendView==='all')names('#friendAllCards').catch(console.warn);
  }
+ function renderFriendOffers(){
+   const grid=$('#friendOffersCards');
+   if(!grid||!state.selected)return;
+   const showing=state.friendOffers.slice(0,state.offerPage);
+   $('#friendOffersCount').textContent=state.offersError?
+     'No se pudieron consultar las ofertas: '+state.offersError:
+     state.friendOffers.length+' cartas disponibles para intercambio';
+   grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}"
+     role="button" tabindex="0" aria-label="Ver carta intercambiable ${esc(item.id)}">
+     <span class="friend-trade-thumb" aria-hidden="true">
+       <span class="friend-trade-placeholder">▤</span>
+       <img loading="lazy" decoding="async" alt="" width="132" height="184">
+     </span>
+     <span class="friend-trade-meta"><strong class="friend-trade-name">Cargando carta…</strong>
+       <small>${esc(item.id)}</small>
+       <small class="friend-card-available">Ofrece ×${item.quantity}</small>
+     </span>
+     <strong class="friend-trade-quantity">×${item.quantity}</strong>
+   </article>`).join('')||`<p class="friends-empty">${state.offersError?'Ofertas temporalmente no disponibles.':
+     'Este amigo todavía no ha marcado cartas disponibles para intercambio.'}</p>`;
+   const more=$('#friendOffersMore');
+   more.hidden=state.friendOffers.length<=state.offerPage;
+   more.textContent=`Mostrar más (${state.friendOffers.length-showing.length})`;
+   if(state.friendView==='offers')names('#friendOffersCards').catch(console.warn);
+ }
  function switchFriendView(view){
    if(!state.selected)return;
-   state.friendView=view==='trades'?'trades':'all';
-   const all=state.friendView==='all';
-   $('#friendAllPanel').hidden=!all;
-   $('#friendTradesPanel').hidden=all;
+   state.friendView=['all','trades','offers'].includes(view)?view:'all';
+   $('#friendAllPanel').hidden=state.friendView!=='all';
+   $('#friendTradesPanel').hidden=state.friendView!=='trades';
+   $('#friendOffersPanel').hidden=state.friendView!=='offers';
    $('#friendsComparison').querySelectorAll('[data-friend-view]').forEach(button=>{
      const on=button.dataset.friendView===state.friendView;
      button.classList.toggle('active',on);
      button.setAttribute('aria-pressed',String(on));
    });
-   if(all)renderFriendCollection();
-   else names('#friendTradesPanel').catch(console.warn);
+   if(state.friendView==='all')renderFriendCollection();
+   else if(state.friendView==='trades')names('#friendTradesPanel').catch(console.warn);
+   else renderFriendOffers();
  }
  function setupFriendCollection(theirs){
    const select=$('#friendAllSet');
@@ -265,6 +293,7 @@
    select.addEventListener('change',()=>{state.friendPage=PAGE_SIZE;renderFriendCollection()});
    $('#friendAllMissing').addEventListener('change',()=>{state.friendPage=PAGE_SIZE;renderFriendCollection()});
    $('#friendAllMore').addEventListener('click',()=>{state.friendPage+=PAGE_SIZE;renderFriendCollection()});
+   $('#friendOffersMore').addEventListener('click',()=>{state.offerPage+=PAGE_SIZE;renderFriendOffers()});
    $('#friendsComparison').querySelectorAll('[data-friend-view]').forEach(button=>
      button.addEventListener('click',()=>switchFriendView(button.dataset.friendView)));
    switchFriendView('all');
@@ -283,13 +312,27 @@
    }
    throw new Error('La colección supera el límite de carga permitido.');
  }
+ async function fetchFriendOffers(target){
+   const rows=[],limit=500;
+   for(let offset=0;offset<50000;offset+=limit){
+     const result=await supabaseClient.from('trade_inventory')
+       .select('card_id,available_quantity').eq('user_id',target)
+       .order('card_id',{ascending:true}).range(offset,offset+limit-1);
+     if(result.error)throw result.error;
+     const batch=result.data||[];
+     rows.push(...batch);
+     if(batch.length<limit)return rows;
+   }
+   throw new Error('El inventario de intercambio supera el límite de carga.');
+ }
  async function compare(f){
    if(f.status!=='accepted'||!session())return;
    const target=uid(f),ownUser=remoteUser.id;
    state.selected=f.id;
    state.friendView='all';
    state.friendPage=PAGE_SIZE;
-   state.friendCards=[];
+   state.offerPage=PAGE_SIZE;
+   state.friendCards=[];state.friendOffers=[];state.offersError='';
    $('#friendsComparison').hidden=false;
    $('#friendsComparison').innerHTML='<p class="friends-empty">Cargando colección de tu amigo…</p>';
    let rows;
@@ -302,6 +345,16 @@
    if(!session()||remoteUser.id!==ownUser||state.selected!==f.id)return;
    const theirs=rows.filter(x=>Number(x.quantity)>0).map(x=>({id:x.card_id,quantity:Number(x.quantity)}));
    state.friendCards=theirs;
+   try{
+     const offers=await fetchFriendOffers(target);
+     if(!session()||remoteUser.id!==ownUser||state.selected!==f.id)return;
+     const cardIds=new Set(theirs.map(c=>c.id));
+     state.friendOffers=offers.filter(x=>Number(x.available_quantity)>0&&cardIds.has(x.card_id))
+       .map(x=>({id:x.card_id,quantity:Number(x.available_quantity)}));
+   }catch(error){
+     if(!session()||remoteUser.id!==ownUser||state.selected!==f.id)return;
+     state.offersError=error.message||'Error de conexión';
+   }
    const mine=typeof collection!=='undefined'?collection:{};
    const theyHave=theirs.filter(x=>Number(x.quantity)>1&&Number(mine[x.card_id]||0)===0)
      .map(x=>({id:x.card_id,quantity:x.quantity-1}));
@@ -317,6 +370,7 @@
    <div class="friend-view-tabs" role="group" aria-label="Qué mostrar de la colección">
      <button type="button" class="active" data-friend-view="all" aria-pressed="true">▦ Colección completa</button>
      <button type="button" data-friend-view="trades" aria-pressed="false">⇄ Intercambios</button>
+     <button type="button" data-friend-view="offers" aria-pressed="false">✧ Disponibles</button>
    </div>
    <section id="friendAllPanel">
      <div class="friend-full-toolbar">
@@ -328,6 +382,12 @@
      <div id="friendAllCards" class="friend-full-grid"></div>
      <button id="friendAllMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
    </section>
+   <section id="friendOffersPanel" hidden>
+     <p class="friend-trades-intro">Solo las cartas que tu amigo ha marcado expresamente para intercambiar.</p>
+     <p id="friendOffersCount" class="friend-full-count"></p>
+     <div id="friendOffersCards" class="friend-full-grid"></div>
+     <button id="friendOffersMore" class="friend-full-more" type="button" hidden>Mostrar más</button>
+   </section>
    <section id="friendTradesPanel" hidden>
      <p class="friend-trades-intro">Comparación por cartas exactas. Solo considera excedentes: cantidad menos 1. Pulsa una carta para ver su ficha completa.</p>
      <div class="friends-trade-grid">
@@ -335,7 +395,7 @@
        ${tradeGroup('Tus repetidas que le faltan',iHave,'No tienes repetidas que le falten a tu amigo.')}
      </div>
    </section>`;
-   $('#friendsCloseComparison').onclick=()=>{state.selected=null;state.friendCards=[];$('#friendsComparison').hidden=true};
+   $('#friendsCloseComparison').onclick=()=>{state.selected=null;state.friendCards=[];state.friendOffers=[];$('#friendsComparison').hidden=true};
    setupFriendCollection(theirs);
  }
  // Reutilizar exactamente el modal del buscador, sin duplicar la ficha.
