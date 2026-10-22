@@ -1318,7 +1318,7 @@ function updatePlanningBadges(){
 }
 function setCollectionTab(name){
   $$('.collection-tab').forEach(b=>b.classList.toggle('active',b.dataset.collectionTab===name));
-  ['sets','wishlist','goals'].forEach(tab=>{
+  ['sets','wishlist','goals','trade'].forEach(tab=>{
     const el=$(`#collectionTab${tab.charAt(0).toUpperCase()+tab.slice(1)}`);
     if(el){el.hidden=tab!==name;el.classList.toggle('active',tab===name)}
   });
