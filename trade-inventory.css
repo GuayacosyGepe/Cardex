@@ -1,0 +1,42 @@
+
+/* CardDex · Mis intercambiables — secciones aisladas del diseño existente */
+.trade-card-controls{border:1px solid var(--line);border-radius:13px;padding:17px;margin:15px 0;background:var(--panel2);display:grid;gap:12px}
+.trade-card-controls[hidden],#tradeLoggedIn[hidden],#tradeLoggedOut[hidden],#tradeUniqueWarning[hidden]{display:none!important}
+.trade-card-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.trade-card-heading>span{font-size:13px;font-weight:850}
+.trade-card-heading small,#tradeCardHelp{color:var(--muted);font-size:11px}
+.trade-offer-controls{display:flex;align-items:center;gap:12px}
+.trade-offer-controls button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;min-height:39px;min-width:39px;padding:7px 11px;font-weight:800}
+.trade-offer-controls button:disabled{opacity:.4;cursor:not-allowed}
+.trade-offer-controls>strong{min-width:30px;text-align:center;font-size:21px}
+#tradeOfferSave{margin-left:auto;min-width:82px;background:var(--accent);color:#080910;border-color:transparent}
+.trade-unique-warning{border:1px solid #bb8c45;background:rgba(212,157,70,.08);border-radius:10px;padding:10px;color:var(--text);font-size:12px;margin:0}
+#tradeCardFeedback{font-size:12px;color:var(--accent);font-weight:700;min-height:14px}
+.trade-loggedout{border:1px solid var(--line);border-radius:12px;padding:25px;background:var(--panel)}
+.trade-loggedout button{padding:11px 16px;cursor:pointer;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+.trade-summary{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.trade-summary>div{padding:16px 22px;border-radius:14px;border:1px solid var(--line);background:var(--panel);display:grid;gap:5px;min-width:146px}
+.trade-summary small{color:var(--muted);font-size:11px}
+.trade-summary strong{font-size:24px}
+.trade-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:15px 0}
+.trade-toolbar button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);padding:10px 13px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:750}
+.trade-toolbar button.active{background:color-mix(in srgb,var(--accent) 16%,var(--panel));border-color:var(--accent);color:var(--text)}
+.trade-toolbar input{min-height:40px;min-width:180px;flex:1;background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:8px 12px;border-radius:9px}
+#tradePanelStatus{font-size:12px;color:var(--muted);margin:4px 0}
+#tradePanelStatus.error{color:#ff9696}
+.trade-count{font-size:12px;color:var(--muted);margin:10px 0}
+.trade-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:12px;margin-top:13px}
+.trade-library-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0;display:flex;flex-direction:column;gap:7px;text-align:left;color:var(--text);cursor:pointer}
+.trade-library-card:hover,.trade-library-card:focus-visible{border-color:var(--accent);outline:none}
+.trade-library-cover{position:relative;display:grid;place-items:center;aspect-ratio:.72;width:100%;border-radius:8px;overflow:hidden;background:var(--panel2)}
+.trade-library-cover img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;opacity:0}
+.trade-library-cover.has-image img{opacity:1}
+.trade-library-placeholder{font-size:24px;color:var(--muted)}
+.trade-library-cover.has-image .trade-library-placeholder{opacity:0}
+.trade-library-name{font-size:12px;min-height:28px}
+.trade-library-card small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.trade-library-quantity{font-size:11px;font-weight:800;color:var(--accent)}
+.trade-empty{font-size:13px;color:var(--muted);grid-column:1/-1}
+#tradeMore{display:block;margin:20px auto;padding:10px 16px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+#tradeMore[hidden]{display:none!important}
+@media(max-width:650px){.trade-library-grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px}.trade-card-controls{padding:13px}}

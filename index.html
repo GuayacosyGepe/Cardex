@@ -8,7 +8,8 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="collection-gallery.css?v=20261022-value-v1">
-<link rel="stylesheet" href="friends.css?v=20261022-friend-card-modal-v1">
+<link rel="stylesheet" href="friends.css?v=20261022-trade-availability-v1">
+<link rel="stylesheet" href="trade-inventory.css?v=20261022-trade-availability-v1">
 </head>
 <body>
 <div class="app">
@@ -149,12 +150,25 @@
         <button class="collection-tab active" data-collection-tab="sets" type="button">Expansiones</button>
         <button class="collection-tab" data-collection-tab="wishlist" type="button">Deseados <span id="wishlistCountBadge">0</span></button>
         <button class="collection-tab" data-collection-tab="goals" type="button">Objetivos <span id="goalsCountBadge">0</span></button>
+        <button class="collection-tab" data-collection-tab="trade" type="button">⇄ Mis intercambiables</button>
       </div>
 
       <div id="collectionTabSets" class="collection-tab-panel active">
         <div id="myCollectionSets" class="era-catalog"><div class="empty">Cargando expansiones…</div></div>
       </div>
 
+      <div id="collectionTabTrade" class="collection-tab-panel" hidden>
+        <div class="section-head collection-subhead"><div><h2>Mis intercambiables</h2><p>Publica las cartas que quieres ofrecer. Solo tus amigos aceptados pueden verlas.</p></div></div>
+        <div id="tradeLoggedOut" class="trade-loggedout" hidden><p>Necesitas iniciar sesión para sincronizar tus ofertas.</p><button type="button">Entrar en mi cuenta</button></div>
+        <div id="tradeLoggedIn" hidden>
+          <div class="trade-summary"><div><small>Cartas diferentes</small><strong id="tradeUnique">0</strong></div><div><small>Copias disponibles</small><strong id="tradeCopies">0</strong></div></div>
+          <div class="trade-toolbar"><button type="button" id="tradeModeOffered" class="active">Mis disponibles</button><button type="button" id="tradeModeDuplicates">Mis repetidas</button><input type="search" id="tradeSearch" placeholder="Buscar por carta o nombre…"></div>
+          <p id="tradePanelStatus" aria-live="polite"></p>
+          <p id="tradeResultsLabel" class="trade-count"></p>
+          <div id="tradeCards" class="trade-library-grid"></div>
+          <button type="button" id="tradeMore" hidden>Mostrar más</button>
+        </div>
+      </div>
       <div id="collectionTabWishlist" class="collection-tab-panel" hidden>
         <div class="section-head collection-subhead"><div><h2>Lista de deseados</h2><p>Cartas que todavía no tienes y quieres conseguir.</p></div></div>
         <div id="wishlistGrid" class="tcg-grid"><div class="empty">Todavía no has añadido cartas a Deseados.</div></div>
@@ -316,6 +330,13 @@
         </div>
         <small>Por ahora se guarda en este navegador. Más adelante esto irá ligado a tu cuenta de CardDex.</small>
       </div>
+      <section id="tradeCardControls" class="trade-card-controls" hidden>
+        <div class="trade-card-heading"><span>⇄ Disponibles para intercambio</span><small>En tu colección: <strong id="tradeOwnedLabel">0</strong></small></div>
+        <div class="trade-offer-controls"><button type="button" id="tradeOfferMinus" aria-label="Ofrecer una copia menos">−</button><strong id="tradeOfferNumber">0</strong><button type="button" id="tradeOfferPlus" aria-label="Ofrecer una copia más">+</button><button id="tradeOfferSave" type="button">Guardar</button></div>
+        <p id="tradeUniqueWarning" class="trade-unique-warning" hidden>⚠ Estás ofreciendo todas tus copias. Si completas el intercambio podrías quedarte sin esta carta.</p>
+        <small id="tradeCardHelp"></small>
+        <small id="tradeCardFeedback" aria-live="polite"></small>
+      </section>
       <div class="card-planning-box">
         <div class="planning-row">
           <div><span>Deseados</span><small>Guarda esta carta como pendiente.</small></div>
@@ -335,5 +356,6 @@
 <script src="supabase-config.js"></script>
 <script src="app.js?v=20261022-avatar-fallbacks-v1"></script>
 <script src="collection-gallery.js?v=20261022-premium-hits-fix-v3"></script>
-<script src="friends.js?v=20261022-friend-card-modal-v1"></script>
+<script src="friends.js?v=20261022-trade-availability-v1"></script>
+<script src="trade-inventory.js?v=20261022-trade-availability-v1"></script>
 </body></html>

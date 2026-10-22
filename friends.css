@@ -82,3 +82,10 @@
 .friend-full-card[data-trade-id]:hover{border-color:color-mix(in srgb,var(--accent) 58%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
 .friend-full-card[data-trade-id]:focus-visible{outline-offset:2px;border-color:var(--accent)}
 .friend-card-hint{color:var(--muted);font-size:12px;margin:0 0 13px;line-height:1.5}
+
+/* Inventarios de intercambio publicados por amigos */
+.friend-card-available{color:var(--accent)!important;font-weight:850;font-size:11px!important}
+@media(max-width:650px){
+ .friend-view-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .friend-view-tabs button{white-space:normal;font-size:10px;padding:9px 5px}
+}
