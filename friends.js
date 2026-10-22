@@ -112,6 +112,18 @@
    }
    return [...new Set(urls.filter(Boolean))];
  }
+ async function tradeCardWithImage(id){
+   const card=await getCardDetail(id);
+   if(card?.image||typeof classicEnglishImageUrl==='function'&&classicEnglishImageUrl(card,'low'))return card;
+   // La ficha española puede existir sin escaneo; solo en ese caso buscamos EN.
+   if(typeof fetchJson==='function'&&typeof apiFor==='function'){
+     try{
+       const english=await fetchJson(apiFor('en')+'/cards/'+encodeURIComponent(id));
+       if(english?.image)return {...card,image:english.image};
+     }catch{}
+   }
+   return card;
+ }
  function showTradeImage(row,card,selected){
    const img=row.querySelector('.friend-trade-thumb img');
    const placeholder=row.querySelector('.friend-trade-placeholder');
@@ -154,7 +166,7 @@
      while(index<unique.length&&state.selected===selected){
        const id=unique[index++];
        try{
-         const card=await getCardDetail(id);
+         const card=await tradeCardWithImage(id);
          if(state.selected!==selected)return;
          for(const row of byId.get(id)||[]){
            if(!row.isConnected)continue;
