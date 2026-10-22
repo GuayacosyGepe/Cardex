@@ -224,7 +224,7 @@
    if(!grid||!state.selected)return;
    const cards=friendCollectionFilter();
    const showing=cards.slice(0,state.friendPage);
-   $('#friendAllCount').textContent=`${cards.length} cartas de ${state.friendCards.length}${cards.length===1?'':' diferentes'}`;
+   $('#friendAllCount').textContent=`${cards.length} de ${state.friendCards.length} cartas diferentes`;
    grid.innerHTML=showing.map(item=>`<article class="friend-trade-entry friend-full-card" data-trade-id="${esc(item.id)}">
      <span class="friend-trade-thumb" aria-hidden="true">
        <span class="friend-trade-placeholder">▤</span>
@@ -236,7 +236,7 @@
        <small class="friend-full-set">${esc(friendSetName(friendSetId(item.id)))}</small>
      </span>
      <strong class="friend-trade-quantity">×${item.quantity}</strong>
-   </article>`).join('')||'<p class="friends-empty">No hay cartas que coincidan con este filtro.</p>';
+   </article>`).join('')||`<p class="friends-empty">${state.friendCards.length?'No hay cartas que coincidan con este filtro.':'Tu amigo todavía no tiene cartas registradas.'}</p>`;
    const more=$('#friendAllMore');
    more.hidden=cards.length<=state.friendPage;
    more.textContent=`Mostrar más (${cards.length-showing.length})`;
@@ -305,7 +305,8 @@
    const mine=typeof collection!=='undefined'?collection:{};
    const theyHave=theirs.filter(x=>Number(x.quantity)>1&&Number(mine[x.card_id]||0)===0)
      .map(x=>({id:x.card_id,quantity:x.quantity-1}));
-   const iHave=Object.entries(mine).filter(([id,q])=>Number(q)>1&&!theirs.some(c=>c.card_id===id))
+   const friendCardIds=new Set(theirs.map(c=>c.id));
+   const iHave=Object.entries(mine).filter(([id,q])=>Number(q)>1&&!friendCardIds.has(id))
      .map(([id,q])=>({id,quantity:Number(q)-1}));
    const friendUnique=theirs.length,friendCopies=theirs.reduce((n,x)=>n+Number(x.quantity),0);
    $('#friendsComparison').innerHTML=`<div class="friend-compare-top">
