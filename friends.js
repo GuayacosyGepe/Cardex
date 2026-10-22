@@ -91,7 +91,7 @@
    const rows=items.slice(0,100);
    return `<section class="friend-trade-group"><h3>${esc(title)} <span>${items.length}</span></h3>
    <div class="friend-trade-list">${rows.length?rows.map(x=>`<div class="friend-trade-entry" data-trade-id="${esc(x.id)}">
-     <span class="friend-trade-thumb" aria-hidden="true"><span class="friend-trade-placeholder">▤</span><img loading="lazy" decoding="async" alt="" hidden></span>
+     <span class="friend-trade-thumb" aria-hidden="true"><span class="friend-trade-placeholder">▤</span><img loading="lazy" decoding="async" alt="" width="58" height="81"></span>
      <span class="friend-trade-meta"><span class="friend-trade-name">Buscando carta…</span><small>${esc(x.id)}</small></span>
      <strong class="friend-trade-quantity">×${x.quantity}</strong>
    </div>`).join(''): `<p class="friends-empty">${esc(empty)}</p>`}</div>
@@ -125,9 +125,10 @@
    return card;
  }
  function showTradeImage(row,card,selected){
-   const img=row.querySelector('.friend-trade-thumb img');
-   const placeholder=row.querySelector('.friend-trade-placeholder');
-   if(!img||!placeholder)return;
+   const thumb=row.querySelector('.friend-trade-thumb');
+   const img=thumb?.querySelector('img');
+   const placeholder=thumb?.querySelector('.friend-trade-placeholder');
+   if(!thumb||!img||!placeholder)return;
    const urls=tradeImageCandidates(card);
    if(!urls.length){
      placeholder.textContent='Sin imagen';
@@ -135,17 +136,18 @@
      return;
    }
    let index=0;
+   // La imagen nunca se oculta con display:none: impediría su lazy loading.
+   // Se mantiene renderizada a opacidad cero mientras se descarga.
    img.addEventListener('load',()=>{
      if(state.selected!==selected||!row.isConnected)return;
-     img.hidden=false;
-     placeholder.hidden=true;
+     thumb.classList.add('has-image');
    });
    img.addEventListener('error',()=>{
      if(state.selected!==selected||!row.isConnected)return;
+     thumb.classList.remove('has-image');
      index++;
      if(index<urls.length){img.src=urls[index];return;}
-     img.hidden=true;
-     placeholder.hidden=false;
+     img.removeAttribute('src');
      placeholder.textContent='Sin imagen';
      placeholder.classList.add('is-missing');
    });
