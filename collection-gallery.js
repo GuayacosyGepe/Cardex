@@ -9,7 +9,6 @@
   const failed=new Set();
   const prices=new Map();
   let priceLoading=false, priceDone=0, priceTotal=0, hitsOnly=false;
-  let visibleForPrice=[];
   let version='', visible=PAGE, view='cards', loading=false, detailLoading=false, sequence=0, loaded=0, pending=0;
   let entries=[], matched=[];
   try { Object.entries(JSON.parse(localStorage.getItem(KEY)||'{}')).forEach(([k,v])=>{if(v?.name)cache.set(k,v)}); } catch {}
@@ -55,8 +54,8 @@
   function isHit(card){
     const rarity=String(card?.rarity||'').toLowerCase();
     const name=String(card?.name||'');
-    if(/(?:^|\\b)(?:double rare|illustration rare|special illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|amazing rare|radiant rare|shiny rare|ace spec rare|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar|rare holo lv\\.x|rare prime|rare break|rare prism|rare shiny)(?:$|\\b)/i.test(rarity))return true;
-    return /(?:^|\\s)(?:ex|EX|GX|V|VMAX|VSTAR|BREAK|TURBO|LV\\.X)(?=$|\\s|[-/])/i.test(name);
+    if(/(?:^|\b)(?:double rare|illustration rare|special illustration rare|ultra rare|hyper rare|secret rare|rainbow rare|amazing rare|radiant rare|shiny rare|ace spec rare|rare holo ex|rare holo gx|rare holo v|rare holo vmax|rare holo vstar|rare holo lv\.x|rare prime|rare break|rare prism|rare shiny)(?:$|\b)/i.test(rarity))return true;
+    return /(?:^|\s)(?:ex|GX|V|VMAX|VSTAR|BREAK|TURBO|LV\.X)(?=$|\s|[-/])/i.test(name);
   }
   function priced(value){
     const data=prices.get(value);
@@ -78,7 +77,10 @@
       else if(found.error)failedCount++;
       else without++;
     }
-    amount.textContent=items.length===0?formatEur.format(0):
+    const classificationPending=view==='cards' && advanced() &&
+      entries.some(item=>!cache.get(item.id)?.full);
+    amount.textContent=classificationPending&&(priceLoading||detailLoading)?'Clasificando…':
+      items.length===0?formatEur.format(0):
       valued?formatEur.format(total):pendingCount||failedCount?'Calculando…':'Sin precios';
     const coverage=$('#galleryValueCoverage');
     coverage.textContent=valued+' de '+items.length+' cartas con precio'
@@ -86,8 +88,11 @@
       +(pendingCount?' · '+pendingCount+' pendientes':'')
       +(failedCount?' · '+failedCount+' con error':'');
     const state=$('#galleryValueProgress');
-    state.textContent=priceLoading?'Consultando Cardmarket: '+priceDone+' / '+priceTotal:
+    state.textContent=classificationPending&&(priceLoading||detailLoading)?'Identificando tipos y rarezas…':
+      priceLoading?'Consultando Cardmarket: '+priceDone+' / '+priceTotal:
       pendingCount?'Valoración todavía incompleta':'Precios orientativos de Cardmarket';
+    const refreshButton=$('#galleryReprice');
+    if(refreshButton)refreshButton.disabled=priceLoading;
   }
   async function readFreshPrice(cardId){
     try{
@@ -109,12 +114,12 @@
   async function updatePrices(){
     if(priceLoading||!isCurrent()||!entries.length)return;
     const generation=sequence,now=Date.now();
-    const prioritized=[...new Set([...visibleForPrice,...entries.map(item=>item.id)])];
+    const prioritized=[...new Set([...filteredPriceEntries.map(item=>item.id),...entries.map(item=>item.id)])];
     const todo=prioritized.filter(id=>{
       const saved=prices.get(id);
       return !saved||now-saved.checkedAt>(saved.error?ERROR_TTL:PRICE_TTL);
     });
-    if(!todo.length){renderValue(visibleForPrice.length?entries.filter(e=>visibleForPrice.includes(e.id)):entries);return;}
+    if(!todo.length){renderValue(view==='cards'?filteredPriceEntries:entries);return;}
     priceLoading=true;priceDone=0;priceTotal=todo.length;
     let index=0;
     const workers=Array.from({length:Math.min(3,todo.length)},async()=>{
@@ -326,7 +331,7 @@
     seed();const next=owned(),signature=next.map(x=>x.id).sort().join('|');
     if(signature!==version){version=signature;sequence++;loading=false;detailLoading=false;priceLoading=false;visible=PAGE;}
     entries=next;options();render();
-    hydrate();maybeDetail();updatePrices();
+    hydrate();updatePrices();maybeDetail();
   }
   function init(){
     ui();refresh();
