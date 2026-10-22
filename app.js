@@ -1407,7 +1407,7 @@ function renderAuthUser(){
       image._carddexAvatarKey=avatarKey;
       image.style.visibility='';
       image.src=avatar;
-      image.style.imageRendering=avatar.includes('/official-artwork/')?'auto':'pixelated';
+      image.style.imageRendering=(avatar.includes('/official-artwork/')||avatar.endsWith('.svg'))?'auto':'pixelated';
     }
   }
   avatarButton.classList.toggle('logged-out',!logged);
@@ -1473,7 +1473,10 @@ function avatarSpriteCandidates(id,style='pixel'){
   // Los mini iconos de generación 8 no incluyen la generación 9.
   if(style==='icon'&&safeId<=898)
     paths.push(`versions/generation-viii/icons/${safeId}.png`);
-  paths.push(`${safeId}.png`,`other/official-artwork/${safeId}.png`);
+  // Para la generación 9 es más fiable el artwork oficial que los antiguos
+  // sprites frontales; así evitamos peticiones fallidas antes de mostrar el avatar.
+  if(safeId>=906)paths.push(`other/official-artwork/${safeId}.png`,`${safeId}.png`);
+  else paths.push(`${safeId}.png`,`other/official-artwork/${safeId}.png`);
   const raw='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
   const cdn='https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/';
   // Segundo servidor, otros tipos de imagen, y al final un recurso local.
@@ -1503,7 +1506,7 @@ function handleAvatarImageError(event){
   const next=ordered[index+1]||AVATAR_LOCAL_FALLBACK;
   if(next===current)return;
   img.style.visibility='';
-  img.style.imageRendering=next.includes('/official-artwork/')?'auto':'pixelated';
+  img.style.imageRendering=(next.includes('/official-artwork/')||next.endsWith('.svg'))?'auto':'pixelated';
   img.src=next;
 }
 // Captura también los fallos de los iconos cargados de forma diferida en el selector.
