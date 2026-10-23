@@ -778,8 +778,10 @@ function markImageLanguage(img,url){
  }else{
    const container=img.closest('.tcg-card-image');
    if(container){
-     if(english)container.setAttribute('data-image-language','EN');
-     else container.removeAttribute('data-image-language');
+     // No reutilizar el atributo de la antigua superposición grande.
+     container.removeAttribute('data-image-language');
+     container.classList.toggle('card-english-scan',Boolean(english));
+     img.title=english?'Imagen provisional en inglés':'';
    }
  }
 }
@@ -823,6 +825,7 @@ document.addEventListener('error',event=>{
    missing.className='no-card-image';missing.textContent='Imagen pendiente';
    img.replaceWith(missing);
    container.removeAttribute('data-image-language');
+   container.classList.remove('card-english-scan');
  }else img.style.visibility='hidden';
 },true);
 function renderCardSkeletons(selector,count=18){
@@ -833,7 +836,7 @@ function cardTile(card,{collectionMode=false}={}){
   const images=cardImageCandidates(card,'low'),img=images[0]||'',provisional=cardImageLanguage(img);
   return `<article class="tcg-card ${owned?'owned':''}" data-card-id="${escapeHtml(card.id)}">
     <span class="owned-badge">×${count}</span>
-    <div class="tcg-card-image" ${provisional?'data-image-language="EN"':''}>${img?`<img loading="lazy" src="${escapeHtml(img)}" data-image-sources="${escapeHtml(JSON.stringify(images))}" data-image-index="0" alt="${escapeHtml(card.name)}" title="${provisional?'Imagen provisional en inglés':''}">`:'<span class="no-card-image">Imagen pendiente</span>'}</div>
+    <div class="tcg-card-image${provisional?' card-english-scan':''}">${img?`<img loading="lazy" src="${escapeHtml(img)}" data-image-sources="${escapeHtml(JSON.stringify(images))}" data-image-index="0" alt="${escapeHtml(card.name)}" title="${provisional?'Imagen provisional en inglés':''}">`:'<span class="no-card-image">Imagen pendiente</span>'}</div>
     <div class="tcg-card-name">${escapeHtml(card.name)}</div>
     <div class="tcg-card-number">#${escapeHtml(String(card.localId))}</div>
   </article>`;
