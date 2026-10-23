@@ -727,6 +727,13 @@ const CARD_IMAGE_PARENT_SETS=Object.freeze({
  'swsh9.5tg':'swsh9','swsh10.5tg':'swsh10',
  'swsh11.5tg':'swsh11','swsh12.5tg':'swsh12'
 });
+function anniversaryEnglishImageUrl(card,quality='low'){
+ const match=/^30th-(\d{1,3})$/i.exec(String(card?.id||''));
+ const number=match?Number(match[1]):0;
+ // Pooka enumera las 158 cartas principales y secretas con esta numeración.
+ if(number<1||number>158)return '';
+ return 'https://cdn.pooka.app/card/en-me55-'+number+'.png'+(quality==='low'?'?size=small':'');
+}
 function cardImageAssetBase(card,lang='en'){
  const id=String(card?.id||''),dash=id.lastIndexOf('-');
  if(dash<=0||dash===id.length-1)return '';
@@ -749,6 +756,7 @@ function cardImageCandidates(card,quality='low'){
  addTcg(card?.image);
  // Las reimpresiones clásicas 001–030 necesitan una tabla de equivalencias.
  add(classicEnglishImageUrl(card,quality));
+ add(anniversaryEnglishImageUrl(card,quality));
  // Si no existe imagen española, o falla la URL, probar el escaneo inglés.
  addTcg(cardImageAssetBase(card,'en'));
  return sources;
@@ -931,7 +939,7 @@ async function getCardDetail(cardId){
     try{
       const data=await fetchJson(`${apiFor(lang)}/cards/${encodeURIComponent(cardId)}`);
       // Mantener metadatos y nombre españoles; recuperar solo la imagen inglesa.
-      if(!data.image&&lang!=='en'&&!classicEnglishImageUrl({id:cardId})){
+      if(!data.image&&lang!=='en'&&!classicEnglishImageUrl({id:cardId})&&!anniversaryEnglishImageUrl({id:cardId})){
         try{
           const english=await fetchJson(`${apiFor('en')}/cards/${encodeURIComponent(cardId)}`);
           if(english?.image)data.image=english.image;
