@@ -848,12 +848,36 @@ function classicEnglishImageUrl(card,quality='low'){
   if(!original)return '';
   return `https://cdn.pooka.app/card/en-me55c-${original}.png${quality==='low'?'?size=small':''}`;
 }
-// TCGdex almacena algunas galerías bajo el set matriz, aunque su API omita image.
+// TCGdex no asocia estas subgalerías con la carpeta donde SÍ existen sus
+// imágenes. Equivalencias verificadas en el repositorio de incidencias TCGdex.
+// Son cartas diferentes: conservamos su ID para el conteo y solo cambia el
+// origen del escaneo, sin sustituirlo por otra carta del set principal.
 const CARD_IMAGE_PARENT_SETS=Object.freeze({
- 'swsh4.5sv':'swsh4.5','swsh12.5gg':'swsh12.5',
- 'swsh9.5tg':'swsh9','swsh10.5tg':'swsh10',
- 'swsh11.5tg':'swsh11','swsh12.5tg':'swsh12'
+  'swsh4.5sv':'swsh4.5',    // Shining Fates · Shiny Vault (122)
+  'swsh12.5gg':'swsh12.5', // Crown Zenith · Galarian Gallery (70)
+  'swsh9tg':'swsh9','swsh9.5tg':'swsh9',     // Brilliant Stars · Trainer Gallery
+  'swsh10tg':'swsh10','swsh10.5tg':'swsh10', // Astral Radiance · Trainer Gallery
+  'swsh11tg':'swsh11','swsh11.5tg':'swsh11', // Lost Origin · Trainer Gallery
+  'swsh12tg':'swsh12','swsh12.5tg':'swsh12', // Silver Tempest · Trainer Gallery
+  'exu':'ex10'            // Unseen Forces · Unown Collection (FR)
 });
+const CARD_IMAGE_GALLERY_LANGS=Object.freeze({
+  // Estas imágenes solo están registradas en la carpeta francesa del CDN.
+  exu:['fr']
+});
+function galleryImageAssetBases(card){
+  const id=String(card?.id||''),dash=id.lastIndexOf('-');
+  if(dash<=0)return [];
+  const setId=id.slice(0,dash),localId=id.slice(dash+1);
+  const parent=CARD_IMAGE_PARENT_SETS[setId];
+  if(!parent)return [];
+  const set=getSetById(setId);
+  const serie=set?.seriesId||(/^(?:swsh)/i.test(setId)?'swsh':setId==='exu'?'ex':'');
+  if(!serie)return [];
+  return (CARD_IMAGE_GALLERY_LANGS[setId]||['es','en','fr']).map(lang=>
+    `https://assets.tcgdex.net/${lang}/${serie}/${parent}/${encodeURIComponent(localId)}`
+  );
+}
 function anniversaryEnglishImageUrl(card,quality='low'){
  const match=/^30th-(\d{1,3})$/i.exec(String(card?.id||''));
  const number=match?Number(match[1]):0;
@@ -875,6 +899,18 @@ function cardImageAssetBase(card,lang='en'){
 function cardImageCandidates(card,quality='low'){
   const sources=[],known=new Set();
   const add=url=>{if(url&&!known.has(url)){known.add(url);sources.push(url)}};
+  // Para galerías: usar PRIMERO las carpetas reales del CDN. Una sola
+  // imagen fallida en ES pasa inmediatamente a la inglesa, sin esperar
+  // varios 404 probando formatos de una carpeta inexistente.
+  const galleryBases=galleryImageAssetBases(card);
+  if(galleryBases.length){
+    for(const q of [quality,quality==='low'?'high':'low']){
+      for(const ext of ['webp','png','jpg']){
+        for(const base of galleryBases)add(`${base}/${q}.${ext}`);
+      }
+    }
+    return sources;
+  }
   const addTcg=base=>{
     if(!base)return;
     if(/\.(?:webp|png|jpg)(?:\?.*)?$/i.test(base)){add(base);return}
