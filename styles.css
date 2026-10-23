@@ -412,11 +412,11 @@ html[data-theme="light"] .avatar-style-switch button.active{background:#fff}
 html[data-theme="light"] .set-main-symbol-fallback>img{filter:drop-shadow(0 6px 10px rgba(26,31,42,.12))}
 
 /* Escaneos provisionales: mostrar su idioma sin confundirlos con cartas en español. */
-.tcg-card-image[data-image-language]{position:relative}
-.tcg-card-image[data-image-language]::after{
- content:"EN";position:absolute;left:4px;top:4px;z-index:2;
- background:rgba(10,12,19,.84);color:#f1ecff;font-size:8px;font-weight:800;
- letter-spacing:0;line-height:1;border-radius:3px;padding:2px 4px;
+.tcg-card-image.card-english-scan{position:relative}
+.tcg-card-image.card-english-scan::after{
+ content:"EN";position:absolute;right:3px;bottom:3px;z-index:2;
+ background:rgba(10,12,19,.78);color:#f1ecff;font-size:7px;font-weight:750;
+ letter-spacing:0;line-height:1;border-radius:3px;padding:2px 3px;
  pointer-events:none;white-space:nowrap
 }
 .classic-image-notice{font-size:11px;color:var(--muted);line-height:1.5;padding:5px 0 10px}
