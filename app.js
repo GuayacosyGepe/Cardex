@@ -264,16 +264,27 @@ async function syncProfilePatch(patch={}){
   const {error}=await supabaseClient.from('profiles').upsert(payload,{onConflict:'user_id'});
   if(error)console.warn('CardDex profile sync:',error.message);
 }
-async function syncCollectionItem(cardId){
-  if(!remoteWritable())return;
-  const quantity=countFor(cardId);
-  if(quantity<=0){
-    const {error}=await supabaseClient.from('collection_items').delete().eq('user_id',remoteUser.id).eq('card_id',cardId);
-    if(error)console.warn('CardDex collection delete:',error.message);
-    return;
-  }
-  const {error}=await supabaseClient.from('collection_items').upsert({user_id:remoteUser.id,card_id:cardId,quantity,updated_at:new Date().toISOString()},{onConflict:'user_id,card_id'});
-  if(error)console.warn('CardDex collection sync:',error.message);
+// Serializamos los cambios de una misma carta para que los clics rápidos
+// no guarden cantidades antiguas sobre cantidades más recientes.
+const pendingCollectionWrites=new Map();
+function syncCollectionItem(cardId){
+  if(!remoteWritable())return Promise.resolve();
+  const userId=remoteUser.id;
+  const previous=pendingCollectionWrites.get(cardId)||Promise.resolve();
+  const next=previous.catch(()=>{}).then(async()=>{
+    if(!remoteWritable()||remoteUser.id!==userId)return;
+    const quantity=countFor(cardId);
+    if(quantity<=0){
+      const {error}=await supabaseClient.from('collection_items').delete().eq('user_id',userId).eq('card_id',cardId);
+      if(error)console.warn('CardDex collection delete:',error.message);
+      return;
+    }
+    const {error}=await supabaseClient.from('collection_items').upsert({user_id:userId,card_id:cardId,quantity,updated_at:new Date().toISOString()},{onConflict:'user_id,card_id'});
+    if(error)console.warn('CardDex collection sync:',error.message);
+  });
+  pendingCollectionWrites.set(cardId,next);
+  next.finally(()=>{if(pendingCollectionWrites.get(cardId)===next)pendingCollectionWrites.delete(cardId)}).catch(()=>{});
+  return next;
 }
 async function syncWishlistFull(){
   if(!remoteWritable())return;
@@ -834,11 +845,17 @@ function renderCardSkeletons(selector,count=18){
 function cardTile(card,{collectionMode=false}={}){
   const count=countFor(card.id), owned=count>0;
   const images=cardImageCandidates(card,'low'),img=images[0]||'',provisional=cardImageLanguage(img);
+  const cardName=escapeHtml(card.name||card.id);
   return `<article class="tcg-card ${owned?'owned':''}" data-card-id="${escapeHtml(card.id)}">
     <span class="owned-badge">×${count}</span>
     <div class="tcg-card-image${provisional?' card-english-scan':''}">${img?`<img loading="lazy" src="${escapeHtml(img)}" data-image-sources="${escapeHtml(JSON.stringify(images))}" data-image-index="0" alt="${escapeHtml(card.name)}" title="${provisional?'Imagen provisional en inglés':''}">`:'<span class="no-card-image">Imagen pendiente</span>'}</div>
     <div class="tcg-card-name">${escapeHtml(card.name)}</div>
     <div class="tcg-card-number">#${escapeHtml(String(card.localId))}</div>
+    <div class="card-quick-controls" role="group" aria-label="Copias de ${cardName}">
+      <button type="button" class="card-quick-btn add" data-quick-adjust="1" aria-label="Añadir una copia de ${cardName}" title="Añadir copia">+</button>
+      <span class="card-quick-quantity" title="Copias en tu colección">${count}</span>
+      <button type="button" class="card-quick-btn remove" data-quick-adjust="-1" aria-label="Quitar una copia de ${cardName}" aria-disabled="${count===0}" title="Quitar copia">−</button>
+    </div>
   </article>`;
 }
 function renderExpansionCards(list){
@@ -851,12 +868,31 @@ function renderExpansionCards(list){
 function attachCardHandlers(container){
   container.querySelectorAll('.tcg-card').forEach(el=>el.addEventListener('click',()=>openCard(el.dataset.cardId)));
 }
+// Captura antes de los manejadores de apertura en todas las vistas de CardDex.
+document.addEventListener('click',event=>{
+  const button=event.target.closest?.('button[data-quick-adjust]');
+  if(!button)return;
+  event.preventDefault();
+  event.stopPropagation();
+  const tile=button.closest('.tcg-card[data-card-id]');
+  if(!tile)return;
+  const delta=Number(button.dataset.quickAdjust);
+  if(delta!==1&&delta!==-1)return;
+  const cardId=tile.dataset.cardId;
+  const previous=countFor(cardId);
+  if(delta<0&&previous===0)return;
+  setCount(cardId,previous+delta);
+},true);
 function refreshGridCards(cardId){
   document.querySelectorAll(`.tcg-card[data-card-id="${CSS.escape(cardId)}"]`).forEach(el=>{
     const count=countFor(cardId);
     el.classList.toggle('owned',count>0);
     const badge=el.querySelector('.owned-badge');
     if(badge)badge.textContent=`×${count}`;
+    const quickQuantity=el.querySelector('.card-quick-quantity');
+    if(quickQuantity)quickQuantity.textContent=count;
+    const removeButton=el.querySelector('.card-quick-btn.remove');
+    if(removeButton)removeButton.setAttribute('aria-disabled',String(count===0));
   });
 }
 function updateCurrentSetProgress(){
