@@ -145,8 +145,9 @@
      if(state.selected!==selected||!row.isConnected)return;
      thumb.classList.add('has-image');
      const language=typeof cardImageLanguage==='function'?cardImageLanguage(img.src):'';
-     if(language)thumb.dataset.imageLanguage=language;
-     else delete thumb.dataset.imageLanguage;
+     thumb.removeAttribute('data-image-language');
+     thumb.classList.toggle('card-english-scan',Boolean(language));
+     img.title=language?'Imagen provisional en inglés':'';
    });
    img.addEventListener('error',()=>{
      if(state.selected!==selected||!row.isConnected)return;

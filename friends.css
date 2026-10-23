@@ -89,8 +89,8 @@
  .friend-view-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
  .friend-view-tabs button{white-space:normal;font-size:10px;padding:9px 5px}
 }
-.friend-trade-thumb[data-image-language]::after{
- content:"EN";position:absolute;top:3px;left:3px;z-index:3;
- border-radius:3px;padding:2px 3px;font-size:8px;font-weight:800;line-height:1;
- background:rgba(10,12,19,.84);color:#f1ecff;pointer-events:none;white-space:nowrap
+.friend-trade-thumb.card-english-scan::after{
+ content:"EN";position:absolute;bottom:3px;right:3px;z-index:3;
+ border-radius:3px;padding:2px 3px;font-size:7px;font-weight:750;line-height:1;
+ background:rgba(10,12,19,.78);color:#f1ecff;pointer-events:none;white-space:nowrap
 }

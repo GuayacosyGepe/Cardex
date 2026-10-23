@@ -115,8 +115,9 @@
          img.onload=()=>{
            cover.classList.add('has-image');
            const language=typeof cardImageLanguage==='function'?cardImageLanguage(img.src):'';
-           if(language)cover.dataset.imageLanguage=language;
-           else delete cover.dataset.imageLanguage;
+           cover.removeAttribute('data-image-language');
+           cover.classList.toggle('card-english-scan',Boolean(language));
+           img.title=language?'Imagen provisional en inglés':'';
          };
          img.onerror=()=>{k++;if(k<urls.length)img.src=urls[k];else{img.removeAttribute('src');row.querySelector('.trade-library-placeholder').textContent='Sin imagen'}};
          img.src=urls[0];
