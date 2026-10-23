@@ -144,6 +144,9 @@
    img.addEventListener('load',()=>{
      if(state.selected!==selected||!row.isConnected)return;
      thumb.classList.add('has-image');
+     const language=typeof cardImageLanguage==='function'?cardImageLanguage(img.src):'';
+     if(language)thumb.dataset.imageLanguage=language;
+     else delete thumb.dataset.imageLanguage;
    });
    img.addEventListener('error',()=>{
      if(state.selected!==selected||!row.isConnected)return;
