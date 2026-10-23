@@ -930,6 +930,13 @@ async function getCardDetail(cardId){
   for(const lang of preferredLanguagesForSet(set)){
     try{
       const data=await fetchJson(`${apiFor(lang)}/cards/${encodeURIComponent(cardId)}`);
+      // Mantener metadatos y nombre españoles; recuperar solo la imagen inglesa.
+      if(!data.image&&lang!=='en'&&!classicEnglishImageUrl({id:cardId})){
+        try{
+          const english=await fetchJson(`${apiFor('en')}/cards/${encodeURIComponent(cardId)}`);
+          if(english?.image)data.image=english.image;
+        }catch{}
+      }
       cardDetailCache.set(cardId,data);
       return data;
     }catch(err){lastError=err}
