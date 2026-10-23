@@ -110,8 +110,8 @@ function mergeCatalog(esSeries=[],enSeries=[]){
         logoEs:esSet?.logo||'',logoEn:enSet?.logo||'',
         symbol:assetUrl(esSet?.symbol||enSet?.symbol||''),
         symbolEs:esSet?.symbol||'',symbolEn:enSet?.symbol||'',
-        total:src?.cardCount?.total||0,
-        official:src?.cardCount?.official||0,
+        total:Math.max(Number(esSet?.cardCount?.total)||0,Number(enSet?.cardCount?.total)||0),
+        official:Math.max(Number(esSet?.cardCount?.official)||0,Number(enSet?.cardCount?.official)||0),
         cardCount:src?.cardCount||{},
         seriesId:id,
         seriesName:serie.name,
@@ -729,7 +729,10 @@ async function fetchSetFull(set){
   if(spanish||english){
     if(spanish&&english){
       const merged=new Map(english.data.cards.map(card=>[card.id,card]));
-      spanish.data.cards.forEach(card=>merged.set(card.id,{...merged.get(card.id),...card}));
+      spanish.data.cards.forEach(card=>{
+        const prior=merged.get(card.id)||{};
+        merged.set(card.id,{...prior,...card,image:card.image||prior.image||''});
+      });
       return {data:{...english.data,...spanish.data,cards:[...merged.values()]},lang:'es'};
     }
     return spanish||english;
@@ -741,8 +744,10 @@ async function fetchSetFull(set){
       try{
         const params=new URLSearchParams({'set.id':`eq:${set.tcgId}`});
         const cards=await fetchJson(`${apiFor(lang)}/cards?${params}`);
-        if(Array.isArray(cards)&&cards.length)
-          return {data:{...preferred.data,cards},lang,restoredFromIndex:true};
+        if(Array.isArray(cards)&&cards.length){
+          const matching=cards.filter(card=>String(card.id||'').startsWith(set.tcgId+'-'));
+          if(matching.length)return {data:{...preferred.data,cards:matching},lang,restoredFromIndex:true};
+        }
       }catch(error){lastError=error}
     }
     return {...preferred,missingCardData:true};
