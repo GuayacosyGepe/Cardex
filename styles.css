@@ -422,3 +422,14 @@ html[data-theme="light"] .set-main-symbol-fallback>img{filter:drop-shadow(0 6px 
 .classic-image-notice{font-size:11px;color:var(--muted);line-height:1.5;padding:5px 0 10px}
 .classic-image-notice a{color:var(--accent);text-decoration:underline}
 .classic-image-notice[hidden]{display:none!important}
+
+/* Compatibilidad con HTML/cache anterior: nunca pintar «EN · provisional». */
+.tcg-card-image[data-image-language]::after,
+.friend-trade-thumb[data-image-language]::after,
+.trade-library-cover[data-image-language]::after{
+  content:"EN"!important;
+  left:auto!important;top:auto!important;right:3px!important;bottom:3px!important;
+  font-size:7px!important;line-height:1!important;font-weight:750!important;
+  padding:2px 3px!important;letter-spacing:0!important;white-space:nowrap!important;
+  border-radius:3px!important;
+}
