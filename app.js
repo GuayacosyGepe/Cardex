@@ -58,8 +58,22 @@ async function fetchJson(url){
 }
 async function loadSeriesLanguage(lang){
   const briefs=(await fetchJson(`${apiFor(lang)}/series`)).filter(s=>!EXCLUDED_SERIES.has(s.id));
-  const detailed=await Promise.allSettled(briefs.map(s=>fetchJson(`${apiFor(lang)}/series/${encodeURIComponent(s.id)}`)));
-  return briefs.map((brief,i)=>detailed[i].status==='fulfilled'?detailed[i].value:{...brief,sets:[]});
+  const results=new Array(briefs.length);
+  let cursor=0;
+  await Promise.all(Array.from({length:Math.min(5,briefs.length)},async()=>{
+    while(cursor<briefs.length){
+      const index=cursor++,brief=briefs[index];
+      try{results[index]=await fetchJson(`${apiFor(lang)}/series/${encodeURIComponent(brief.id)}`)}
+      catch{
+        try{results[index]=await fetchJson(`${apiFor(lang)}/series/${encodeURIComponent(brief.id)}`)}
+        catch(error){
+          console.warn('CardDex serie:',lang,brief.id,error?.message||error);
+          results[index]={...brief,sets:[]};
+        }
+      }
+    }
+  }));
+  return results;
 }
 function mergeCatalog(esSeries=[],enSeries=[]){
   const esMap=new Map(esSeries.map(s=>[s.id,s]));
@@ -80,6 +94,7 @@ function mergeCatalog(esSeries=[],enSeries=[]){
       id,
       name:es?.name||en?.name||id,
       logo:assetUrl(es?.logo||en?.logo||''),
+      logoEs:es?.logo||'',logoEn:en?.logo||'',
       lang:es?'es':'en',
       rank:seriesIndex,
       sets:[]
@@ -92,7 +107,9 @@ function mergeCatalog(esSeries=[],enSeries=[]){
         name:esSet?.name||enSet?.name||setId,
         code:setId,
         logo:assetUrl(esSet?.logo||enSet?.logo||''),
+        logoEs:esSet?.logo||'',logoEn:enSet?.logo||'',
         symbol:assetUrl(esSet?.symbol||enSet?.symbol||''),
+        symbolEs:esSet?.symbol||'',symbolEn:enSet?.symbol||'',
         total:src?.cardCount?.total||0,
         official:src?.cardCount?.official||0,
         cardCount:src?.cardCount||{},
@@ -130,6 +147,7 @@ function addAnniversarySets(found){
     const existing=currentById.get(id.toLowerCase());
     return {
       ...(existing||{}),
+      logoEs:data.logo||existing?.logoEs||'',symbolEs:data.symbol||existing?.symbolEs||'',
       id,tcgId:id,code:id,
       name:data.name||existing?.name||source.name,
       logo:assetUrl(data.logo||existing?.logo||''),
@@ -223,6 +241,7 @@ let currentVisibleCards=[];
 let currentCard=null;
 let currentCardFull=null;
 let currentExpansionMode='explore';
+let expansionRequestId=0;
 let currentPokemon=null;
 let pokemonBackView='pokedex';
 let pokemon=[];
@@ -509,7 +528,7 @@ function setCard(s,{myCollection=false}={}){
   const owned=getKnownSetOwned(s.tcgId);
   const total=s.total||0;
   const progress=total?Math.round(owned/total*100):0;
-  const status=myCollection
+  const status=s.missingCardData?'Fichas no disponibles en TCGdex':myCollection
     ? (total ? `${owned} / ${total} cartas · ${progress}%` : `${owned} cartas registradas`)
     : (total?`${total} cartas`:'Abrir expansión');
   return `<article class="card set-card" data-set-id="${escapeHtml(s.tcgId||'')}" style="--glow:${s.glow}">
@@ -645,17 +664,44 @@ function resetExpansionFilters(){
 }
 function getSetById(id){return sets.find(s=>s.tcgId===id||s.id===id)||null}
 function preferredLanguagesForSet(set){
-  const langs=[];
-  [set?.lang,'es','en'].forEach(l=>{if(l&&!langs.includes(l))langs.push(l)});
-  return langs;
+  return ['es','en'];
 }
 async function fetchSetFull(set){
-  let lastError;
+  const retrieved=[];
+  let lastError=null;
   for(const lang of preferredLanguagesForSet(set)){
     try{
       const data=await fetchJson(`${apiFor(lang)}/sets/${encodeURIComponent(set.tcgId)}`);
-      return {data,lang};
+      const cards=Array.isArray(data.cards)?data.cards:[];
+      retrieved.push({data:{...data,cards},lang});
+      const expected=Number(data.cardCount?.total||set.total||0);
+      // Completar desde EN cuando la traducción española tiene fichas pendientes.
+      if(lang==='es'&&cards.length&&(!expected||cards.length>=expected))break;
+      if(lang==='en'&&cards.length)break;
     }catch(err){lastError=err}
+  }
+  const spanish=retrieved.find(x=>x.lang==='es'&&x.data.cards.length);
+  const english=retrieved.find(x=>x.lang==='en'&&x.data.cards.length);
+  if(spanish||english){
+    if(spanish&&english){
+      const merged=new Map(english.data.cards.map(card=>[card.id,card]));
+      spanish.data.cards.forEach(card=>merged.set(card.id,{...merged.get(card.id),...card}));
+      return {data:{...english.data,...spanish.data,cards:[...merged.values()]},lang:'es'};
+    }
+    return spanish||english;
+  }
+  // Una expansión puede tener metadatos y un /sets/{id} con 0 cartas.
+  if(retrieved.length){
+    const preferred=retrieved.find(x=>x.lang==='es')||retrieved[0];
+    for(const lang of preferredLanguagesForSet(set)){
+      try{
+        const params=new URLSearchParams({'set.id':`eq:${set.tcgId}`});
+        const cards=await fetchJson(`${apiFor(lang)}/cards?${params}`);
+        if(Array.isArray(cards)&&cards.length)
+          return {data:{...preferred.data,cards},lang,restoredFromIndex:true};
+      }catch(error){lastError=error}
+    }
+    return {...preferred,missingCardData:true};
   }
   throw lastError||new Error('Set unavailable');
 }
@@ -669,6 +715,7 @@ function renderExpansionHeaderArt(set){
 async function openExpansion(tcgId,mode='explore'){
   const set=getSetById(tcgId);
   if(!set)return;
+  const requestId=++expansionRequestId;
   currentSet=set;
   currentSetCards=[];
   currentVisibleCards=[];
@@ -685,12 +732,21 @@ async function openExpansion(tcgId,mode='explore'){
   $('#expansionFilterInfo').textContent=`${set.seriesName||'Pokémon TCG'} · ${String(set.tcgId).toUpperCase()}`;
   renderCardSkeletons('#expansionCardGrid',18);
   try{
-    const {data,lang}=await fetchSetFull(set);
+    const {data,lang,missingCardData}=await fetchSetFull(set);
+    if(requestId!==expansionRequestId)return;
     set.lang=lang;
+    set.missingCardData=Boolean(missingCardData);
     set.name=data.name||set.name;
     set.seriesName=data.serie?.name||set.seriesName;
     set.logo=assetUrl(data.logo||set.logo);
     set.symbol=assetUrl(data.symbol||set.symbol);
+    if(lang==='es'){
+      if(data.logo)set.logoEs=data.logo;
+      if(data.symbol)set.symbolEs=data.symbol;
+    }else{
+      if(data.logo)set.logoEn=data.logo;
+      if(data.symbol)set.symbolEn=data.symbol;
+    }
     set.releaseDate=data.releaseDate||set.releaseDate||'';
     currentSetCards=(data.cards||[]).slice().sort(sortCards);
     if(data.cardCount?.total)set.total=data.cardCount.total;
@@ -698,12 +754,23 @@ async function openExpansion(tcgId,mode='explore'){
     currentVisibleCards=[...currentSetCards];
     $('#expansionSetTitle').textContent=set.name;
     renderExpansionHeaderArt(set);
-    renderExpansionCards(currentVisibleCards);
-    updateCurrentSetProgress();
-    const release=set.releaseDate?` · ${formatDate(set.releaseDate)}`:'';
-    $('#expansionFilterInfo').textContent=`${set.seriesName||'Pokémon TCG'}${release}`;
+    if(!currentSetCards.length){
+      const count=Number(set.total)||0;
+      $('#expansionCardGrid').innerHTML='<div class="empty"><strong>Cartas no digitalizadas en TCGdex</strong><p>Hemos comprobado los catálogos español e inglés y ninguno ofrece fichas para esta expansión.'+
+        (count?' TCGdex indica '+count+' cartas en sus metadatos, pero no dispone de las fichas.':'')+
+        '</p><p>El problema está en los datos disponibles de la fuente, no en tu colección.</p></div>';
+      $('#expansionSetProgress').textContent='Fichas no disponibles';
+      $('#expansionFilterInfo').textContent='Sin cartas publicadas en TCGdex (ES / EN)';
+    }else{
+      renderExpansionCards(currentVisibleCards);
+      updateCurrentSetProgress();
+      const release=set.releaseDate?` · ${formatDate(set.releaseDate)}`:'';
+      $('#expansionFilterInfo').textContent=`${set.seriesName||'Pokémon TCG'}${release}${lang==='en'?' · Fichas en inglés':''}`;
+    }
+    renderLibrary();
     renderMyCollectionSets();
   }catch(err){
+    if(requestId!==expansionRequestId)return;
     console.error(err);
     $('#expansionCardGrid').innerHTML='<div class="empty">No hemos podido cargar las cartas de esta expansión. Comprueba tu conexión a Internet.</div>';
     $('#expansionFilterInfo').textContent='Las cartas se cargan desde TCGdex en este prototipo.';
