@@ -40,3 +40,8 @@
 #tradeMore{display:block;margin:20px auto;padding:10px 16px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer}
 #tradeMore[hidden]{display:none!important}
 @media(max-width:650px){.trade-library-grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px}.trade-card-controls{padding:13px}}
+.trade-library-cover[data-image-language]::after{
+ content:attr(data-image-language);position:absolute;top:5px;left:5px;z-index:3;
+ border-radius:4px;padding:3px 5px;font-size:9px;font-weight:900;
+ background:rgba(10,12,19,.84);color:#f1ecff;pointer-events:none
+}

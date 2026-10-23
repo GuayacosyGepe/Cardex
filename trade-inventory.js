@@ -109,10 +109,15 @@
          if(!row)continue;
          row.querySelector('.trade-library-name').textContent=card?.name||id;
          const img=row.querySelector('img'),cover=row.querySelector('.trade-library-cover');
-         const urls=[imageUrl(card,'low'),card?.image?card.image+'/low.png':'',card?.image?card.image+'/high.webp':''].filter(Boolean);
+         const urls=typeof cardImageCandidates==='function'?cardImageCandidates(card,'low'):[imageUrl(card,'low')].filter(Boolean);
          if(!urls.length){row.querySelector('.trade-library-placeholder').textContent='Sin imagen';continue}
          let k=0;
-         img.onload=()=>cover.classList.add('has-image');
+         img.onload=()=>{
+           cover.classList.add('has-image');
+           const language=typeof cardImageLanguage==='function'?cardImageLanguage(img.src):'';
+           if(language)cover.dataset.imageLanguage=language;
+           else delete cover.dataset.imageLanguage;
+         };
          img.onerror=()=>{k++;if(k<urls.length)img.src=urls[k];else{img.removeAttribute('src');row.querySelector('.trade-library-placeholder').textContent='Sin imagen'}};
          img.src=urls[0];
        }catch{}

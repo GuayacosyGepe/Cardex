@@ -106,19 +106,8 @@
    ${items.length>100?'<small>Se muestran las primeras 100 cartas.</small>':''}</section>`;
  }
  function tradeImageCandidates(card){
-   const urls=[];
-   if(typeof imageUrl==='function'){
-     const image=imageUrl(card,'low');
-     if(image)urls.push(image);
-   }
-   if(card?.image){
-     urls.push(card.image+'/low.png',card.image+'/high.webp');
-   }
-   if(typeof classicEnglishImageUrl==='function'){
-     const english=classicEnglishImageUrl(card,'low');
-     if(english)urls.push(english);
-   }
-   return [...new Set(urls.filter(Boolean))];
+   // Usar idéntico orden ES → EN → formatos alternativos que el resto de CardDex.
+   return typeof cardImageCandidates==='function'?cardImageCandidates(card,'low'):[imageUrl(card,'low')].filter(Boolean);
  }
  function tradeCardWithImage(id){
    if(friendCardDetails.has(id))return friendCardDetails.get(id);
@@ -155,6 +144,9 @@
    img.addEventListener('load',()=>{
      if(state.selected!==selected||!row.isConnected)return;
      thumb.classList.add('has-image');
+     const language=typeof cardImageLanguage==='function'?cardImageLanguage(img.src):'';
+     if(language)thumb.dataset.imageLanguage=language;
+     else delete thumb.dataset.imageLanguage;
    });
    img.addEventListener('error',()=>{
      if(state.selected!==selected||!row.isConnected)return;

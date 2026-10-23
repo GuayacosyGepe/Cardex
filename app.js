@@ -721,58 +721,119 @@ function classicEnglishImageUrl(card,quality='low'){
   if(!original)return '';
   return `https://cdn.pooka.app/card/en-me55c-${original}.png${quality==='low'?'?size=small':''}`;
 }
-function imageUrl(card,quality='low'){
-  if(card?.image)return `${card.image}/${quality}.webp`;
-  return classicEnglishImageUrl(card,quality);
+// TCGdex almacena algunas galerías bajo el set matriz, aunque su API omita image.
+const CARD_IMAGE_PARENT_SETS=Object.freeze({
+ 'swsh4.5sv':'swsh4.5','swsh12.5gg':'swsh12.5',
+ 'swsh9.5tg':'swsh9','swsh10.5tg':'swsh10',
+ 'swsh11.5tg':'swsh11','swsh12.5tg':'swsh12'
+});
+function anniversaryEnglishImageUrl(card,quality='low'){
+ const match=/^30th-(\d{1,3})$/i.exec(String(card?.id||''));
+ const number=match?Number(match[1]):0;
+ // Pooka enumera las 158 cartas principales y secretas con esta numeración.
+ if(number<1||number>158)return '';
+ return 'https://cdn.pooka.app/card/en-me55-'+number+'.png'+(quality==='low'?'?size=small':'');
 }
-function classicImageNotice(isFallback){
-  let note=document.querySelector('#classicEnglishImageNotice');
-  if(!note){
-    note=document.createElement('div');
-    note.id='classicEnglishImageNotice';
-    note.className='classic-image-notice';
-    note.innerHTML='Imagen provisional en inglés · Fuente: <a href="https://pooka.app/list/set/cards/en-me55c/30th%20Celebration%3A%20Classic%20Collection" target="_blank" rel="noopener noreferrer">Pooka</a>';
-    document.querySelector('#cardModalTitle')?.insertAdjacentElement('afterend',note);
-  }
-  note.hidden=!isFallback;
+function cardImageAssetBase(card,lang='en'){
+ const id=String(card?.id||''),dash=id.lastIndexOf('-');
+ if(dash<=0||dash===id.length-1)return '';
+ const setId=id.slice(0,dash),localId=id.slice(dash+1),set=getSetById(setId);
+ // El 30º aniversario tiene numeraciones especiales; no inventar equivalencias.
+ if(setId.startsWith('30th')||set?.seriesId==='anniversary30')return '';
+ const series=(set?.seriesId||/^(swsh|sv|me|sm|xy|bw|hgss|pl|dp|ex|base|neo|ecard|pop|np|promo|tk)/i.exec(setId)?.[1]||'').toLowerCase();
+ if(!['swsh','sv','me','sm','xy','bw','hgss','pl','dp','ex','base','neo','ecard','pop','np','promo','tk'].includes(series))return '';
+ return 'https://assets.tcgdex.net/'+lang+'/'+series+'/'+(CARD_IMAGE_PARENT_SETS[setId]||setId)+'/'+encodeURIComponent(localId);
 }
-// Si TCGdex proporciona una URL pero el escaneo falla, se prueba la versión inglesa.
+function cardImageCandidates(card,quality='low'){
+ const sources=[],known=new Set();
+ const add=url=>{if(url&&!known.has(url)){known.add(url);sources.push(url)}};
+ const addTcg=base=>{
+   if(!base)return;
+   if(/\.(?:webp|png|jpg)(?:\?.*)?$/i.test(base)){add(base);return}
+   add(base+'/'+quality+'.webp');
+   add(base+'/'+quality+'.png');
+ };
+ addTcg(card?.image);
+ // Las reimpresiones clásicas 001–030 necesitan una tabla de equivalencias.
+ add(classicEnglishImageUrl(card,quality));
+ add(anniversaryEnglishImageUrl(card,quality));
+ // Si no existe imagen española, o falla la URL, probar el escaneo inglés.
+ addTcg(cardImageAssetBase(card,'en'));
+ return sources;
+}
+function imageUrl(card,quality='low'){return cardImageCandidates(card,quality)[0]||''}
+function cardImageLanguage(url){
+ return /assets\.tcgdex\.net\/en\//i.test(url||'')||/cdn\.pooka\.app\/card\/en-/i.test(url||'')?'EN':'';
+}
+function markImageLanguage(img,url){
+ const english=cardImageLanguage(url),modal=img.id==='cardModalImage';
+ if(modal){
+   const note=document.querySelector('#cardImageFallbackNotice');
+   if(note){
+     note.hidden=!english;
+     note.innerHTML=/cdn\.pooka\.app/i.test(url||'')?
+       'Imagen provisional en inglés · Fuente: <a href="https://pooka.app/list/set/cards/en-me55c/30th%20Celebration%3A%20Classic%20Collection" target="_blank" rel="noopener noreferrer">Pooka</a>':
+       'Imagen provisional en inglés · Fuente: <a href="https://tcgdex.dev/assets" target="_blank" rel="noopener noreferrer">TCGdex</a>';
+   }
+ }else{
+   const container=img.closest('.tcg-card-image');
+   if(container){
+     if(english)container.setAttribute('data-image-language','EN');
+     else container.removeAttribute('data-image-language');
+   }
+ }
+}
+function setCardImageSources(img,card,quality='low'){
+ const sources=cardImageCandidates(card,quality);
+ img.dataset.imageSources=JSON.stringify(sources);
+ img.dataset.imageIndex='0';
+ img.style.visibility='visible';
+ if(img.id==='cardModalImage'){
+   let note=document.querySelector('#cardImageFallbackNotice');
+   if(!note){
+     note=document.createElement('div');
+     note.id='cardImageFallbackNotice';
+     note.className='classic-image-notice';
+     $('#cardModalTitle').insertAdjacentElement('afterend',note);
+   }
+ }
+ markImageLanguage(img,sources[0]||'');
+ if(sources.length)img.src=sources[0];
+ else img.removeAttribute('src');
+}
 document.addEventListener('error',event=>{
-  const img=event.target;
-  if(!(img instanceof HTMLImageElement)||!img.matches('.tcg-card-image img,#cardModalImage'))return;
-  const modal=img.id==='cardModalImage';
-  const id=modal?currentCard?.id:img.closest('.tcg-card')?.dataset.cardId;
-  const fallback=classicEnglishImageUrl({id},modal?'high':'low');
-  if(!fallback)return;
-  if(img.dataset.classicFallback!=='used'&&img.src!==fallback){
-    img.dataset.classicFallback='used';
-    img.src=fallback;
-    img.title='Imagen provisional en inglés · Fuente: Pooka';
-    if(modal)classicImageNotice(true);
-    else img.closest('.tcg-card-image')?.setAttribute('data-image-language','EN');
-    return;
-  }
-  // Si la fuente temporal también fallase, evita mostrar un icono de imagen rota.
-  if(modal){
-    img.style.visibility='hidden';
-    classicImageNotice(false);
-  }else{
-    const missing=document.createElement('span');
-    missing.className='no-card-image';
-    missing.textContent='Imagen pendiente';
-    img.replaceWith(missing);
-    missing.parentElement?.removeAttribute('data-image-language');
-  }
+ const img=event.target;
+ if(!(img instanceof HTMLImageElement)||
+   !img.matches('.tcg-card-image img,#cardModalImage,.goal-card-preview img'))return;
+ let sources=[];
+ try{sources=JSON.parse(img.dataset.imageSources||'[]')}catch{}
+ const next=Number(img.dataset.imageIndex||0)+1;
+ if(next<sources.length){
+   img.dataset.imageIndex=String(next);
+   markImageLanguage(img,sources[next]);
+   img.src=sources[next];
+   return;
+ }
+ // Nunca usar el escaneo de una carta distinta como relleno.
+ if(img.id==='cardModalImage'){
+   img.style.visibility='hidden';markImageLanguage(img,'');
+ }else if(img.closest('.tcg-card-image')){
+   const container=img.closest('.tcg-card-image');
+   const missing=document.createElement('span');
+   missing.className='no-card-image';missing.textContent='Imagen pendiente';
+   img.replaceWith(missing);
+   container.removeAttribute('data-image-language');
+ }else img.style.visibility='hidden';
 },true);
 function renderCardSkeletons(selector,count=18){
   $(selector).innerHTML=Array.from({length:count},()=>'<div class="skeleton-card"></div>').join('');
 }
 function cardTile(card,{collectionMode=false}={}){
   const count=countFor(card.id), owned=count>0;
-  const img=imageUrl(card,'low');
+  const images=cardImageCandidates(card,'low'),img=images[0]||'',provisional=cardImageLanguage(img);
   return `<article class="tcg-card ${owned?'owned':''}" data-card-id="${escapeHtml(card.id)}">
     <span class="owned-badge">×${count}</span>
-    <div class="tcg-card-image" ${!card.image&&classicEnglishImageUrl(card)?'data-image-language="EN"':''}>${img?`<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(card.name)}" title="${!card.image&&classicEnglishImageUrl(card)?'Imagen provisional en inglés · Fuente: Pooka':''}">`:'<span class="no-card-image">Sin imagen</span>'}</div>
+    <div class="tcg-card-image" ${provisional?'data-image-language="EN"':''}>${img?`<img loading="lazy" src="${escapeHtml(img)}" data-image-sources="${escapeHtml(JSON.stringify(images))}" data-image-index="0" alt="${escapeHtml(card.name)}" title="${provisional?'Imagen provisional en inglés':''}">`:'<span class="no-card-image">Imagen pendiente</span>'}</div>
     <div class="tcg-card-name">${escapeHtml(card.name)}</div>
     <div class="tcg-card-number">#${escapeHtml(String(card.localId))}</div>
   </article>`;
@@ -877,6 +938,13 @@ async function getCardDetail(cardId){
   for(const lang of preferredLanguagesForSet(set)){
     try{
       const data=await fetchJson(`${apiFor(lang)}/cards/${encodeURIComponent(cardId)}`);
+      // Mantener metadatos y nombre españoles; recuperar solo la imagen inglesa.
+      if(!data.image&&lang!=='en'&&!classicEnglishImageUrl({id:cardId})&&!anniversaryEnglishImageUrl({id:cardId})){
+        try{
+          const english=await fetchJson(`${apiFor('en')}/cards/${encodeURIComponent(cardId)}`);
+          if(english?.image)data.image=english.image;
+        }catch{}
+      }
       cardDetailCache.set(cardId,data);
       return data;
     }catch(err){lastError=err}
@@ -960,10 +1028,9 @@ function fillCardModal(brief,full){
   const modalImage=$('#cardModalImage');
   modalImage.style.visibility='visible';
   delete modalImage.dataset.classicFallback;
-  modalImage.title=!brief.image&&classicEnglishImageUrl(brief)?'Imagen provisional en inglés · Fuente: Pooka':'';
-  modalImage.src=imageUrl(brief,'high');
+  modalImage.title='';
   modalImage.alt=brief.name;
-  classicImageNotice(!brief.image&&Boolean(classicEnglishImageUrl(brief)));
+  setCardImageSources(modalImage,full?.image?{...brief,image:full.image}:brief,'high');
   $('#cardModalTitle').textContent=brief.name;
   $('#cardModalSet').textContent=(full?.set?.name || currentSet?.name || currentPokemon?.displayName || 'CARTA').toUpperCase();
   $('#cardCount').textContent=countFor(brief.id);
@@ -1249,7 +1316,7 @@ function renderGoals(){
     const p=goalProgress(goal);
     const previews=(goal.cards||[]).slice(0,4);
     return `<article class="goal-card" data-goal-id="${escapeHtml(goal.id)}">
-      <div class="goal-card-preview">${previews.length?previews.map(c=>`<img src="${escapeHtml(imageUrl(c,'low'))}" alt="">`).join(''):'<span>＋</span>'}</div>
+      <div class="goal-card-preview">${previews.length?previews.map(c=>`<img src="${escapeHtml(imageUrl(c,'low'))}" data-image-sources="${escapeHtml(JSON.stringify(cardImageCandidates(c,'low')))}" data-image-index="0" alt="">`).join(''):'<span>＋</span>'}</div>
       <div class="goal-card-copy"><h3>${escapeHtml(goal.name)}</h3><p>${escapeHtml(goal.description||'Objetivo personalizado')}</p><strong>${p.owned} / ${p.total} · ${p.pct}%</strong><div class="progress" style="--p:${p.pct}%"><span></span></div></div>
     </article>`;
   }).join('');
