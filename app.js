@@ -502,28 +502,73 @@ function setTextFallbackMarkup(s,{hidden=false}={}){
     <strong>${escapeHtml(s.name)}</strong>${code?`<small>${escapeHtml(code)}</small>`:''}
   </span>`;
 }
+function setAssetCandidates(s,kind='logo'){
+  const out=[],seen=new Set();
+  const add=base=>{
+    if(!base)return;
+    const source=String(base).replace(/\.(webp|png|jpe?g)$/i,'');
+    for(const ext of ['webp','png','jpg']){
+      const url=`${source}.${ext}`;
+      if(!seen.has(url)){seen.add(url);out.push(url)}
+    }
+  };
+  add(s?.[kind+'Es']);
+  add(s?.[kind+'En']);
+  add(s?.[kind]);
+  const seriesId=s?.seriesId;
+  const setId=s?.tcgId;
+  // TCGdex a veces omite logo/símbolo del JSON aun cuando el CDN lo tiene.
+  if(seriesId&&setId&&seriesId!=='anniversary30'){
+    if(kind==='symbol')add(`https://assets.tcgdex.net/univ/${seriesId}/${setId}/symbol`);
+    add(`https://assets.tcgdex.net/en/${seriesId}/${setId}/${kind}`);
+    if(kind==='symbol')add(`https://assets.tcgdex.net/es/${seriesId}/${setId}/symbol`);
+  }
+  return out;
+}
+function setImageTag(s,kind,cssClass,alt){
+  const sources=setAssetCandidates(s,kind);
+  if(!sources.length)return '';
+  return `<img class="${cssClass}" loading="lazy" src="${escapeHtml(sources[0])}" data-set-image-sources="${escapeHtml(JSON.stringify(sources))}" data-image-index="0" alt="${escapeHtml(alt)}">`;
+}
 function setSymbolFallbackMarkup(s,{hidden=false}={}){
-  const symbol=assetUrl(s.symbol);
-  if(!symbol)return setTextFallbackMarkup(s,{hidden});
-  const text=setTextFallbackMarkup(s,{hidden:true});
+  const image=setImageTag(s,'symbol','set-main-symbol-image',`Símbolo de ${s.name}`);
+  if(!image)return setTextFallbackMarkup(s,{hidden});
   return `<span class="set-main-symbol-fallback"${hidden?' style="display:none"':''}>
-    <img loading="lazy" src="${symbol}" alt="Símbolo ${escapeHtml(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
-    ${text}
+    ${image}
+    ${setTextFallbackMarkup(s,{hidden:true})}
   </span>`;
 }
 function setLogoMarkup(s){
-  const logo=assetUrl(s.logo);
-  if(logo){
-    return `<img class="set-main-logo" loading="lazy" src="${logo}" alt="Logo ${escapeHtml(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`+
-      setSymbolFallbackMarkup(s,{hidden:true});
-  }
-  return setSymbolFallbackMarkup(s);
+  const image=setImageTag(s,'logo','set-main-logo',`Logo de ${s.name}`);
+  return image?image+setSymbolFallbackMarkup(s,{hidden:true}):setSymbolFallbackMarkup(s);
 }
 function setSymbolMarkup(s){
-  const symbol=assetUrl(s.symbol);
-  if(!symbol)return '';
-  return `<span class="set-symbol" title="Símbolo de ${escapeHtml(s.name)}"><img loading="lazy" src="${symbol}" alt="" onerror="this.parentElement.style.display='none'"></span>`;
+  const image=setImageTag(s,'symbol','set-symbol-image','');
+  return image?`<span class="set-symbol" title="Símbolo de ${escapeHtml(s.name)}">${image}</span>`:'';
 }
+// Solo cuando se agotan ES, EN y los formatos webp/png/jpg mostramos el respaldo.
+document.addEventListener('error',event=>{
+  const img=event.target;
+  if(!(img instanceof HTMLImageElement)||!img.hasAttribute('data-set-image-sources'))return;
+  let sources=[];
+  try{sources=JSON.parse(img.dataset.setImageSources||'[]')}catch{}
+  const index=Number(img.dataset.imageIndex||'0')+1;
+  if(index<sources.length){
+    img.dataset.imageIndex=String(index);
+    img.src=sources[index];
+    return;
+  }
+  img.style.display='none';
+  if(img.classList.contains('set-main-logo')||img.classList.contains('set-main-symbol-image')){
+    const fallback=img.nextElementSibling;
+    if(fallback)fallback.style.display='grid';
+  }else if(img.closest('.set-symbol')){
+    img.closest('.set-symbol').style.display='none';
+  }else if(img.classList.contains('era-heading-logo')){
+    const label=img.nextElementSibling;
+    if(label)label.style.display='block';
+  }
+},true);
 function setCard(s,{myCollection=false}={}){
   const owned=getKnownSetOwned(s.tcgId);
   const total=s.total||0;
@@ -545,8 +590,7 @@ function setCard(s,{myCollection=false}={}){
 
 const cards=$('#cards'), all=$('#allCards'), myCollectionSets=$('#myCollectionSets');
 function seriesLogoMarkup(serie){
-  const logo=assetUrl(serie.logo);
-  return logo?`<img src="${logo}" alt="${escapeHtml(serie.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`:'';
+  return setImageTag(serie,'logo','era-heading-logo',serie.name);
 }
 function renderEraSections(container,list,{mode='explore'}={}){
   if(!list.length){
@@ -813,31 +857,39 @@ function anniversaryEnglishImageUrl(card,quality='low'){
  return 'https://cdn.pooka.app/card/en-me55-'+number+'.png'+(quality==='low'?'?size=small':'');
 }
 function cardImageAssetBase(card,lang='en'){
- const id=String(card?.id||''),dash=id.lastIndexOf('-');
- if(dash<=0||dash===id.length-1)return '';
- const setId=id.slice(0,dash),localId=id.slice(dash+1),set=getSetById(setId);
- // El 30º aniversario tiene numeraciones especiales; no inventar equivalencias.
- if(setId.startsWith('30th')||set?.seriesId==='anniversary30')return '';
- const series=(set?.seriesId||/^(swsh|sv|me|sm|xy|bw|hgss|pl|dp|ex|base|neo|ecard|pop|np|promo|tk)/i.exec(setId)?.[1]||'').toLowerCase();
- if(!['swsh','sv','me','sm','xy','bw','hgss','pl','dp','ex','base','neo','ecard','pop','np','promo','tk'].includes(series))return '';
- return 'https://assets.tcgdex.net/'+lang+'/'+series+'/'+(CARD_IMAGE_PARENT_SETS[setId]||setId)+'/'+encodeURIComponent(localId);
+  const id=String(card?.id||''),dash=id.lastIndexOf('-');
+  if(dash<=0||dash===id.length-1)return '';
+  const setId=id.slice(0,dash),localId=id.slice(dash+1),set=getSetById(setId);
+  if(setId.startsWith('30th')||set?.seriesId==='anniversary30')return '';
+  // Usar la serie real del catálogo, sin lista cerrada de prefijos. Incluye
+  // Gym, Call of Legends, McDonald's, promos, Trainer Kits y nuevas eras.
+  const series=set?.seriesId||'';
+  if(!series||EXCLUDED_SERIES.has(series))return '';
+  return 'https://assets.tcgdex.net/'+lang+'/'+encodeURIComponent(series)+'/'+encodeURIComponent(CARD_IMAGE_PARENT_SETS[setId]||setId)+'/'+encodeURIComponent(localId);
 }
 function cardImageCandidates(card,quality='low'){
- const sources=[],known=new Set();
- const add=url=>{if(url&&!known.has(url)){known.add(url);sources.push(url)}};
- const addTcg=base=>{
-   if(!base)return;
-   if(/\.(?:webp|png|jpg)(?:\?.*)?$/i.test(base)){add(base);return}
-   add(base+'/'+quality+'.webp');
-   add(base+'/'+quality+'.png');
- };
- addTcg(card?.image);
- // Las reimpresiones clásicas 001–030 necesitan una tabla de equivalencias.
- add(classicEnglishImageUrl(card,quality));
- add(anniversaryEnglishImageUrl(card,quality));
- // Si no existe imagen española, o falla la URL, probar el escaneo inglés.
- addTcg(cardImageAssetBase(card,'en'));
- return sources;
+  const sources=[],known=new Set();
+  const add=url=>{if(url&&!known.has(url)){known.add(url);sources.push(url)}};
+  const addTcg=base=>{
+    if(!base)return;
+    if(/\.(?:webp|png|jpg)(?:\?.*)?$/i.test(base)){add(base);return}
+    const alternative=quality==='low'?'high':'low';
+    for(const q of [quality,alternative]){
+      add(base+'/'+q+'.webp');
+      add(base+'/'+q+'.png');
+    }
+  };
+  addTcg(card?.image);
+  // El catálogo español puede tener un image válido cuyo escaneo falle.
+  // La ruta inglesa del mismo id y serie es el respaldo exacto, sin
+  // cambiar la numeración ni confundir cartas distintas.
+  if(/^https:\/\/assets\.tcgdex\.net\/es\//i.test(card?.image||''))
+    addTcg(card.image.replace(/\/es\//i,'/en/'));
+  add(classicEnglishImageUrl(card,quality));
+  add(anniversaryEnglishImageUrl(card,quality));
+  if(!card?.image)addTcg(cardImageAssetBase(card,'es'));
+  addTcg(cardImageAssetBase(card,'en'));
+  return sources;
 }
 function imageUrl(card,quality='low'){return cardImageCandidates(card,quality)[0]||''}
 function cardImageLanguage(url){
@@ -1295,7 +1347,7 @@ async function runFinderSearch(raw){
     html+=`<div class="result-section"><h3>Pokémon</h3><div class="finder-pokemon-row">${pokeMatches.map(p=>`<button class="finder-pokemon" data-poke-id="${p.id}"><img src="${pokemonArtwork(p.id)}" alt=""><span><b>${escapeHtml(p.displayName)}</b><small>#${String(p.id).padStart(4,'0')} · Ver todas sus cartas</small></span></button>`).join('')}</div></div>`;
   }
   if(setMatches.length){
-    html+=`<div class="result-section"><h3>Expansiones</h3><div class="finder-set-row">${setMatches.map(s=>`<button class="finder-set" data-set-id="${s.tcgId||''}" ${s.tcgId?'':'disabled'}><img src="${s.logo}" alt=""><span>${escapeHtml(s.name)}</span></button>`).join('')}</div></div>`;
+    html+=`<div class="result-section"><h3>Expansiones</h3><div class="finder-set-row">${setMatches.map(s=>`<button class="finder-set" data-set-id="${s.tcgId||''}" ${s.tcgId?'':'disabled'}>${setImageTag(s,'logo','finder-set-image',s.name)}<span>${escapeHtml(s.name)}</span></button>`).join('')}</div></div>`;
   }
   if(cardMatches.length){
     html+=`<div class="result-section"><h3>Cartas</h3><div id="finderCardGrid" class="tcg-grid compact-grid">${cardMatches.map(card=>cardTile(card)).join('')}</div></div>`;
