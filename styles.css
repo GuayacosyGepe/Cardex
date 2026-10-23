@@ -433,3 +433,43 @@ html[data-theme="light"] .set-main-symbol-fallback>img{filter:drop-shadow(0 6px 
   padding:2px 3px!important;letter-spacing:0!important;white-space:nowrap!important;
   border-radius:3px!important;
 }
+
+/* Controles rápidos +/−: gestión de copias sin abrir la ficha */
+.card-quick-controls{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(16px,auto) minmax(0,1fr);
+  align-items:center;
+  gap:6px;
+  margin:9px 2px 1px;
+  padding-top:8px;
+  border-top:1px solid var(--line);
+  position:relative;
+  z-index:1;
+}
+.card-quick-btn{
+  appearance:none;
+  display:grid;
+  place-items:center;
+  width:100%;
+  min-width:0;
+  height:30px;
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--panel2);
+  color:var(--text);
+  font-size:20px;
+  line-height:1;
+  font-weight:750;
+  cursor:pointer;
+  transition:background .15s,border-color .15s,opacity .15s;
+}
+.card-quick-btn.add{background:color-mix(in srgb,var(--accent) 13%,var(--panel));color:var(--accent)}
+.card-quick-btn:hover:not([aria-disabled="true"]){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 22%,var(--panel))}
+.card-quick-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card-quick-btn[aria-disabled="true"]{opacity:.35;cursor:default}
+.card-quick-quantity{font-size:11px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;color:var(--text)}
+@media(max-width:650px){
+  .card-quick-controls{margin:7px 1px 1px;padding-top:6px;gap:4px}
+  .card-quick-btn{height:30px;font-size:19px}
+}
